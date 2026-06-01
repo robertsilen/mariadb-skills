@@ -23,6 +23,8 @@ MariaDB offers three tiers of replication depending on your consistency and avai
 
 | What you might see | What's correct |
 |---|---|
+| `CHANGE REPLICATION SOURCE TO`, `SOURCE_*` connection options | MariaDB has no `CHANGE REPLICATION SOURCE TO` — use `CHANGE MASTER TO` with `MASTER_*` options. Since 10.5.1, `START REPLICA` / `SHOW REPLICA STATUS` are canonical; `START SLAVE` / `SHOW SLAVE STATUS` are legacy aliases |
+| `replica_parallel_type` with values `DATABASE` or `LOGICAL_CLOCK` | MariaDB uses `slave_parallel_mode` (`optimistic` / `conservative` / `aggressive` / `minimal` / `none`) — a different implementation; MySQL's mode settings do not port over. Pool size: `slave_parallel_threads` (alias `slave_parallel_workers`) |
 | MySQL GTID format or `gtid_mode=ON` syntax | MariaDB GTID uses a different format (`domain-server-seq`) and different commands — MySQL and MariaDB GTIDs are **incompatible** |
 | "Install the Galera plugin" | Galera Cluster is built into MariaDB — no plugin installation required |
 | Assuming sequential `AUTO_INCREMENT` in Galera | Galera produces gaps in auto-increment sequences across nodes by design — never rely on sequential values |
@@ -88,6 +90,8 @@ slave_parallel_mode = optimistic   # default since 10.5.1 — tries parallel, re
 ```
 
 `optimistic` mode applies transactions in parallel and retries on conflict. Use `conservative` for stricter workloads where conflict retries are unacceptable.
+
+> **Different from MySQL:** MariaDB's `slave_parallel_mode` (`optimistic`, `conservative`, etc.) is its own implementation — not equivalent to MySQL's `replica_parallel_type` (`DATABASE` / `LOGICAL_CLOCK`). Copy-pasting a MySQL parallel-replication mode config will not work. Pool size is `slave_parallel_threads` (alias `slave_parallel_workers`).
 
 Since MariaDB 12.1, parallel replication also works when **asynchronously replicating between two Galera clusters** (MDEV-20065) — useful for cross-datacenter or DR setups where one Galera cluster is an async replica of another.
 
