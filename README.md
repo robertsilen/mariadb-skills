@@ -77,6 +77,17 @@ curl -o ~/.claude/skills/<skill-name>/SKILL.md \
 - Claude Code and Claude Desktop: `~/.claude/skills/<skill-name>/SKILL.md`
 - OpenAI Codex: `~/.agents/skills/<skill-name>/SKILL.md`
 
+### Updating installed skills
+
+MariaDB skills may be updated over time. If you installed with `npx skills`, refresh your local copies periodically:
+
+```
+npx skills check
+npx skills update
+```
+
+Run `check` first to see what's outdated; `update` pulls the latest from this repo. If you installed manually with `curl`, re-run the download commands above.
+
 ## Using MariaDB skills
 
 Once installed, skills activate automatically. When your question matches a skill's topic, the agent reads it and applies the guidance for that session. No manual activation is needed.
