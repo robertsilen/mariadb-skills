@@ -35,6 +35,7 @@ The two databases share a common origin but have evolved independently. MariaDB 
 | MySQL parallel replication (`replica_parallel_type` with `DATABASE` / `LOGICAL_CLOCK`) | MariaDB uses `slave_parallel_mode` (`optimistic` / `conservative` / `aggressive` / `minimal` / `none`) — different implementation; mode configs do not port over. Pool size: `slave_parallel_threads` (alias `slave_parallel_workers`) |
 | `SET transaction_isolation = ...` (MySQL 8.0 style) | Only works on MariaDB 11.1.1+; on older versions use `tx_isolation` instead — see [SET TRANSACTION](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-transaction) |
 | Links or references to `mariadb.com/kb/en/` | The Knowledge Base no longer exists — all documentation is now at [mariadb.com/docs](https://mariadb.com/docs) |
+| Keeping the MySQL Connector/J, `mysql2`, or other MySQL client drivers after migration | Use MariaDB-maintained connectors (JDBC, Node.js, C, etc.) where possible — they target MariaDB protocol and feature behaviour, not only MySQL compatibility mode |
 
 ## Authentication
 
