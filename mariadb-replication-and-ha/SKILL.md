@@ -69,14 +69,18 @@ MariaDB GTIDs have three components: `domain_id-server_id-sequence` (e.g., `0-1-
 
 This is **different from MySQL's** `server_uuid:sequence` format. They are not compatible — a MariaDB primary cannot replicate to a MySQL replica using GTIDs, and vice versa.
 
-**Domain IDs** enable multi-source replication: assign each primary a distinct `gtid_domain_id` so replicas can track multiple sources independently:
-```sql
--- On primary A:
-SET GLOBAL gtid_domain_id = 1;
+**Domain IDs** (`gtid_domain_id`) identify independent replication streams. The rule is about **concurrency of writes, not server count** — a common and damaging mistake is to give every server its own domain ID:
 
--- On primary B:
-SET GLOBAL gtid_domain_id = 2;
+- **Single active primary, including simple failover:** leave `gtid_domain_id = 0` on **all** servers. In an `A → B` pair where `B` is later promoted (so it becomes `B → A`), `A` and `B` **share the same** domain ID — do **not** give them different ones.
+- **Multiple primaries updated concurrently** (multi-source, or multi-primary within one topology): give **each concurrently-updated primary** its own distinct `gtid_domain_id`, so each stream stays independently ordered and automatic GTID replica-switchover works correctly.
+
+```sql
+-- Multi-source / multi-primary ONLY — each concurrently-written primary gets its own domain:
+SET GLOBAL gtid_domain_id = 1;   -- on primary A
+SET GLOBAL gtid_domain_id = 2;   -- on primary B
 ```
+
+Assigning a distinct domain ID per server otherwise complicates the GTID position and loses the single ordered binlog stream. See [Global Transaction ID](https://mariadb.com/docs/server/ha-and-performance/standard-replication/gtid).
 
 Since MariaDB 13.0, `default_master_connection` can be set at the global level — convenient for replicas that connect to one logical "primary" source across multiple servers without specifying the connection name in every replication command.
 
