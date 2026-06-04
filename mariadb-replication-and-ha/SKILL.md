@@ -12,7 +12,7 @@ MariaDB offers three tiers of replication depending on your consistency and avai
 | Approach | Consistency | Failover | Best for |
 |---|---|---|---|
 | **Standard async replication** | Eventual | Manual or tool-assisted | Read scaling, backups, low-latency writes |
-| **Semi-synchronous replication** | Stronger (1 replica ACK) | Manual or tool-assisted | Reducing data loss risk without full sync overhead |
+| **Semi-synchronous replication** | Eventual (same as async) | Manual or tool-assisted | Ensuring a replica *received* each commit before the client is acknowledged — bounds failover loss (lossless only with `AFTER_SYNC`) |
 | **Galera Cluster** | Synchronous (multi-primary) | Automatic | Zero-data-loss HA, multi-datacenter writes |
 
 > **Requires:** GTID replication: MariaDB 10.0+. Semi-sync built-in: 10.3+. Parallel replication optimistic mode: 10.5.1+. Current LTS is 11.8 (GA May 2025).
@@ -133,7 +133,7 @@ Since MariaDB 11.6 (MDEV-33856), the definition of `Seconds_Behind_Master` was r
 
 ## Semi-Synchronous Replication
 
-The primary waits for at least one replica to acknowledge receipt before committing. Reduces data loss risk on failover without requiring full synchronous overhead.
+The primary writes and fsyncs each transaction to its **own** binary log first — making it durable locally — and only then waits for at least one replica to acknowledge that it has *received* the transaction before reporting the commit complete to the client. The `rpl_semi_sync_master_wait_point` setting controls when that wait happens: with `AFTER_SYNC` the primary waits before the changes become visible, so failover to an acknowledged replica is lossless; with `AFTER_COMMIT` (the MariaDB default) the transaction is already committed and visible before the wait, so a crash in that window can still lose it on failover. See [Semisynchronous Replication](https://mariadb.com/docs/server/ha-and-performance/standard-replication/semisynchronous-replication).
 
 ```sql
 -- Enable on primary:
@@ -145,7 +145,7 @@ SET GLOBAL rpl_semi_sync_slave_enabled = 1;
 
 If no replica acknowledges within `rpl_semi_sync_master_timeout` (default 10 seconds), the primary falls back to async. Built-in since MariaDB 10.3 — no plugin needed.
 
-Use when: you need stronger data durability than async but your workload tolerates a small write latency increase.
+Use when: you want at least one replica to have *received* each transaction before the client's commit returns — e.g. to bound failover data loss (use `AFTER_SYNC`). Note that semi-sync only delays commit completion as seen by the client; it does **not** add durability to the primary's own copy, and a transaction lost before any replica receives it is gone regardless of semi-sync.
 
 ## Galera Cluster
 
