@@ -241,10 +241,11 @@ This gives a recovery window for accidental changes, but it is still not a subst
 
 ## Failover Tools
 
-- **MaxScale** — MariaDB's proxy with automatic failover, read-write splitting, and connection routing. Detects primary failure and promotes the most up-to-date replica. Requires GTID replication. [mariadb.com/docs/maxscale](https://mariadb.com/docs/maxscale)
-- **ProxySQL** — third-party proxy, widely used for read-write splitting and connection pooling with MariaDB
+- **Built-in (no proxy needed)** — Galera failover is automatic: any surviving node keeps accepting writes. For async/GTID replication, MariaDB does controlled primary switchover natively via GTID and `MASTER_DEMOTE_TO_SLAVE` (see [Standard Async Replication](#standard-async-replication) above), typically driven by your own scripts or an orchestrator.
+- **ProxySQL** — open-source (GPLv3) proxy, widely used for read-write splitting and connection pooling with MariaDB.
+- **MaxScale** — MariaDB Corporation's proxy with automatic failover, read-write splitting, and connection routing (detects primary failure and promotes the most up-to-date replica; requires GTID replication). **Not open source** — recent versions (25.01+) are closed-source commercial, and earlier versions used the source-available Business Source License (BSL), not an OSI open-source license. [mariadb.com/docs/maxscale](https://mariadb.com/docs/maxscale)
 
-For Galera, failover is automatic — any surviving node continues accepting writes. No proxy required for basic HA, though MaxScale or ProxySQL add connection routing.
+For basic Galera HA no proxy is required; ProxySQL or MaxScale add connection routing.
 
 ## Sources
 
