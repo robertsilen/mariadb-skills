@@ -152,9 +152,9 @@ MariaDB and MySQL use different query optimizers with different cost models. Ide
 - [MariaDB vs MySQL Compatibility — MariaDB Docs](https://mariadb.com/docs/release-notes/community-server/about/compatibility-and-differences/mariadb-vs-mysql-compatibility)
 - [Moving from MySQL to MariaDB — MariaDB Docs](https://mariadb.com/docs/server/server-management/install-and-upgrade-mariadb/migrating-to-mariadb/moving-from-mysql/)
 - [MDEV-28906 — MySQL 8.0 desired compatibility (Jira epic)](https://jira.mariadb.org/browse/MDEV-28906) — tracks MySQL 8.0 compatibility work; check individual sub-task status before assuming an item is still missing — closed sub-tasks mean the feature has been implemented
-- [RETURNING — MariaDB KB](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/inserting-loading-data/insertreturning)
-- [CREATE SEQUENCE — MariaDB KB](https://mariadb.com/docs/server/reference/sql-structure/sequences/create-sequence)
-- [System-Versioned Tables — MariaDB KB](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/system-versioned-tables)
-- [Authentication Plugins — MariaDB KB](https://mariadb.com/docs/server/reference/plugins/authentication-plugins)
+- [RETURNING — MariaDB Docs](https://mariadb.com/docs/server/reference/sql-statements/data-manipulation/inserting-loading-data/insertreturning)
+- [CREATE SEQUENCE — MariaDB Docs](https://mariadb.com/docs/server/reference/sql-structure/sequences/create-sequence)
+- [System-Versioned Tables — MariaDB Docs](https://mariadb.com/docs/server/reference/sql-structure/temporal-tables/system-versioned-tables)
+- [Authentication Plugins — MariaDB Docs](https://mariadb.com/docs/server/reference/plugins/authentication-plugins)
 
 *For topics not covered here, see the official MariaDB documentation at [mariadb.com/docs](https://mariadb.com/docs).*
