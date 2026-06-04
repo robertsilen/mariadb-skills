@@ -5,7 +5,7 @@ description: "Best practices for using vectors and AI with MariaDB. Use when wri
 
 # MariaDB Vector & AI Best Practices
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-06-04*
 
 ## Critical: MariaDB Vector Is Built-In
 

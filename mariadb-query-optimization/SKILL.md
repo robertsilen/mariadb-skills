@@ -5,7 +5,7 @@ description: "Best practices for query optimization in MariaDB — indexing stra
 
 # MariaDB Query Optimization
 
-*Last updated: 2026-05-25*
+*Last updated: 2026-06-04*
 
 > **Requires:** MariaDB 10.1+ for `ANALYZE` and histograms; optimizer improvements through **11.8 LTS** (GA May 2025) form the baseline below.
 >

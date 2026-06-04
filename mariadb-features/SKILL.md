@@ -5,7 +5,7 @@ description: "MariaDB-specific features and capabilities that go beyond standard
 
 # MariaDB Features Worth Knowing
 
-*Last updated: 2026-05-25*
+*Last updated: 2026-06-04*
 
 MariaDB has grown significantly beyond its MySQL origins. Many of its best features are unknown to developers because AI agents default to generic SQL advice. This skill covers what MariaDB can do that you might not think to ask about.
 
