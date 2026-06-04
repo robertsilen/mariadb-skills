@@ -237,7 +237,7 @@ CHANGE MASTER TO MASTER_DELAY = 3600;  -- 1 hour lag
 
 This gives a recovery window for accidental changes, but it is still not a substitute for backups.
 
-**Point-in-time recovery (13.0+)** — the new `innodb_log_archive` variable instructs InnoDB to preserve the write-ahead log as a continuous sequence of files instead of overwriting a ring buffer. Combined with a base backup, this enables PITR and incremental backups without needing the binary log alone. Use this on systems that need to roll forward to a precise transaction.
+**Point-in-time recovery (new in 13.0)** — the `innodb_log_archive` variable ([MDEV-37949](https://mariadb.com/docs/release-notes/community-server/13.0/mariadb-13.0-changes-and-improvements)) makes InnoDB preserve the write-ahead log as a continuous sequence of files instead of overwriting the circular redo log. Combined with a base backup, this is intended to enable PITR and incremental backups without relying on the binary log alone. It is **new in the 13.0 rolling release** (not on the 11.8 LTS baseline) — treat it as recent and validate before depending on it for recovery.
 
 ## Failover Tools
 
