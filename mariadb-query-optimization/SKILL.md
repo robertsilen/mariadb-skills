@@ -128,6 +128,31 @@ WHERE created_at >= '2025-01-01' AND created_at < '2026-01-01'
 
 Verify with `EXPLAIN` rather than assuming: on 11.4+ many "won't use the index" rewrites are now no-ops. If `EXPLAIN` still shows `type=ALL` for a sargable pattern, check `@@optimizer_switch` for `sargable_casefold` and confirm the column's collation is `_ci`.
 
+### Functional Indexes: Use a Generated Column
+
+MySQL 8.0.13+ supports **functional key parts** — indexing an expression directly with a doubled-parenthesis syntax. MariaDB does **not** support this:
+
+```sql
+-- ✗ MySQL syntax — fails on MariaDB:
+CREATE INDEX idx_upper ON users ((UPPER(name)));
+ALTER TABLE orders ADD INDEX ((total * quantity));
+```
+
+In MariaDB, index a [generated (computed) column](https://mariadb.com/docs/server/reference/sql-statements/data-definition/create/generated-columns) instead. A `VIRTUAL` column stores nothing and is computed on read; the index on it persists the expression's value, which is what gets searched:
+
+```sql
+-- ✅ MariaDB equivalent:
+ALTER TABLE users
+  ADD COLUMN name_upper VARCHAR(255) AS (UPPER(name)) VIRTUAL,
+  ADD INDEX idx_name_upper (name_upper);
+
+-- Query the column the optimizer can resolve directly,
+-- or rely on virtual-column optimizer support (11.8+) for WHERE UPPER(name) = ...
+SELECT * FROM users WHERE name_upper = 'ALICE';
+```
+
+Note that for many simple cases (`YEAR(col)`, `UPPER(col)` on `_ci` collations) MariaDB 11.1+ no longer needs an indexed expression at all — see the table above. Reach for a generated column when the expression isn't sargable on its own.
+
 ## Pagination: Cursor-Based Instead of OFFSET
 
 `OFFSET` is a hidden performance trap. `LIMIT 10 OFFSET 50000` scans and discards 50,000 rows on every page load.
