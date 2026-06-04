@@ -314,6 +314,20 @@ WHERE n > 10;
 
 Hints are more targeted than `SET optimizer_switch` because they apply only to the query they're in, not the whole session.
 
+## Bounding Expensive Queries: LIMIT ROWS EXAMINED
+
+`LIMIT ROWS EXAMINED` is a **MariaDB-specific** extension (since 5.5.21) with no MySQL equivalent. It caps how many rows a `SELECT` may examine, terminating execution early once the cap is hit — a safety valve against runaway scans on unbounded or ad-hoc queries:
+
+```sql
+-- Up to 10 result rows, but stop after examining 10,000 rows:
+SELECT * FROM t1, t2 LIMIT 10 ROWS EXAMINED 10000;
+
+-- The cap can be used on its own:
+SELECT * FROM big_table WHERE status = 'x' LIMIT ROWS EXAMINED 50000;
+```
+
+When the cap is reached the query returns a **partial result set** plus a warning — so it is a guard rail, not a way to get correct-but-faster answers. `SELECT` only; it is a syntax error on `UPDATE`/`DELETE`. For a time-based bound instead, use the `MAX_EXECUTION_TIME(ms)` optimizer hint (12.0+) above. See [LIMIT ROWS EXAMINED](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/limit-rows-examined).
+
 ## Quick Wins Checklist
 
 Before adding indexes or rewriting queries, check these first:
