@@ -114,7 +114,6 @@ These exist in MySQL 8.0 but not in MariaDB — code using them needs adaptation
 - **`sys` schema** — available since MariaDB 10.6; not available in older versions
 - **MySQL 8 GIS functions** (`ST_Validate`, `MBRCoveredBy`, `ST_Simplify`, `ST_GeoHash`, `ST_LatFromGeoHash`, `ST_LongFromGeoHash`, `ST_PointFromGeoHash`, `ST_IsValid`, `ST_Collect`) — added in MariaDB 12.0 for MySQL compatibility
 - **`caching_sha2_password` as default plugin** — available as an opt-in plugin from MariaDB 12.1; on older or stock setups, use `mysql_native_password` or `ed25519`
-- **`ALTER TABLE ... RENAME INDEX`** — use `DROP INDEX` + `ADD INDEX` instead (older MariaDB versions)
 - **JSON `->` and `->>` operators** — use `JSON_EXTRACT(col, '$.key')` and `JSON_UNQUOTE(JSON_EXTRACT(...))` instead
 - **`utf8mb4_0900_ai_ci` collation** — supported since MariaDB 11.4.5 (alias for `utf8mb4_uca1400_nopad_ai_ci`); on older versions replace with `utf8mb4_unicode_ci` before importing
 
