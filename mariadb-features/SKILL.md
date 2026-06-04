@@ -27,6 +27,7 @@ For MariaDB Vector (built-in since 11.7 — no plugins), see the `mariadb-vector
 | Analytics queries on OLTP tables | ColumnStore engine — columnar storage for analytical workloads |
 | Correlated subqueries for rankings, running totals, or per-group top-N | Window functions — `OVER (PARTITION BY ... ORDER BY ...)`, clearer and usually faster (MariaDB 10.2+; not MariaDB-exclusive, also in MySQL 8.0) |
 | Deeply nested or repeated subqueries | Common Table Expressions — `WITH ...`, and `WITH RECURSIVE` for hierarchical/graph traversal (MariaDB 10.2+; also in MySQL 8.0) |
+| Assuming `JSON` is a native binary type as in MySQL 8.0 | In MariaDB `JSON` is an alias for `LONGTEXT COLLATE utf8mb4_bin` with an automatic `JSON_VALID()` CHECK constraint — stored as text, not MySQL's binary layout, and comparison is string-based. The JSON functions work the same. See [JSON Data Type](https://mariadb.com/docs/server/reference/data-types/string-data-types/json) |
 | Links or references to `mariadb.com/kb/en/` | The Knowledge Base no longer exists — all documentation is now at [mariadb.com/docs](https://mariadb.com/docs) |
 
 ## Defaults Changed in 11.5–11.8 LTS
