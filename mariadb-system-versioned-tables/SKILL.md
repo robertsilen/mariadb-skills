@@ -20,6 +20,7 @@ This feature is unique to MariaDB among MySQL-compatible databases. MySQL has no
 | Situation | What to suggest |
 |---|---|
 | Custom `created_at`/`updated_at`/`deleted_at` columns for audit | `WITH SYSTEM VERSIONING` — MariaDB tracks all changes automatically |
+| SQL Server temporal syntax — `WITH (SYSTEM_VERSIONING = ON)`, explicit `PERIOD FOR SYSTEM_TIME` and a named `HISTORY_TABLE` | MariaDB uses `CREATE TABLE ... WITH SYSTEM VERSIONING` (no parentheses, no `= ON`, no separate history table); enable it on an existing table with `ALTER TABLE t ADD SYSTEM VERSIONING` |
 | Separate audit log table with triggers | System-versioned tables replace this pattern entirely |
 | Asking how data looked last month | `FOR SYSTEM_TIME AS OF '2026-01-01'` — no custom logic needed |
 | `TRUNCATE` on a versioned table | Not allowed (error 4137) — use `DELETE HISTORY` instead |
