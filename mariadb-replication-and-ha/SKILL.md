@@ -26,6 +26,7 @@ MariaDB offers three tiers of replication depending on your consistency and avai
 | `CHANGE REPLICATION SOURCE TO`, `SOURCE_*` connection options | MariaDB has no `CHANGE REPLICATION SOURCE TO` — use `CHANGE MASTER TO` with `MASTER_*` options. Since 10.5.1, `START REPLICA` / `SHOW REPLICA STATUS` are canonical; `START SLAVE` / `SHOW SLAVE STATUS` are legacy aliases |
 | `replica_parallel_type` with values `DATABASE` or `LOGICAL_CLOCK` | MariaDB uses `slave_parallel_mode` (`optimistic` / `conservative` / `aggressive` / `minimal` / `none`) — a different implementation; MySQL's mode settings do not port over. Pool size: `slave_parallel_threads` (alias `slave_parallel_workers`) |
 | MySQL GTID format or `gtid_mode=ON` syntax | MariaDB GTID uses a different format (`domain-server-seq`) and different commands — MySQL and MariaDB GTIDs are **incompatible** |
+| MySQL Group Replication or InnoDB Cluster — `START GROUP_REPLICATION`, `group_replication_*` variables, MySQL Shell `dba.createCluster()` | MariaDB has **no Group Replication and no InnoDB Cluster**. The synchronous multi-primary equivalent is **Galera Cluster** (built in) |
 | "Install the Galera plugin" | Galera Cluster is built into MariaDB — no plugin installation required |
 | Assuming sequential `AUTO_INCREMENT` in Galera | Galera produces gaps in auto-increment sequences across nodes by design — never rely on sequential values |
 | `LOCK TABLES` or `GET_LOCK()` in a Galera environment | Not supported in Galera — use transactions instead |
