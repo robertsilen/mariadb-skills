@@ -36,6 +36,7 @@ The two databases share a common origin but have evolved independently. MariaDB 
 | `SET transaction_isolation = ...` (MySQL 8.0 style) | Only works on MariaDB 11.1.1+; on older versions use `tx_isolation` instead — see [SET TRANSACTION](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/set-commands/set-transaction) |
 | Links or references to `mariadb.com/kb/en/` | The Knowledge Base no longer exists — all documentation is now at [mariadb.com/docs](https://mariadb.com/docs) |
 | Keeping the MySQL Connector/J, `mysql2`, or other MySQL client drivers after migration | Use MariaDB-maintained connectors (JDBC, Node.js, C, etc.) where possible — they target MariaDB protocol and feature behaviour, not only MySQL compatibility mode |
+| Migrating by copying InnoDB data files / tablespaces from MySQL 8.0 | MariaDB has no transactional data dictionary and cannot read MySQL 8.0's — data files are not portable. Use a logical dump/restore — see [Data Dictionary Architecture](#data-dictionary-architecture) |
 
 ## Authentication
 
@@ -116,6 +117,19 @@ These exist in MySQL 8.0 but not in MariaDB — code using them needs adaptation
 - **`ALTER TABLE ... RENAME INDEX`** — use `DROP INDEX` + `ADD INDEX` instead (older MariaDB versions)
 - **JSON `->` and `->>` operators** — use `JSON_EXTRACT(col, '$.key')` and `JSON_UNQUOTE(JSON_EXTRACT(...))` instead
 - **`utf8mb4_0900_ai_ci` collation** — supported since MariaDB 11.4.5 (alias for `utf8mb4_uca1400_nopad_ai_ci`); on older versions replace with `utf8mb4_unicode_ci` before importing
+
+## Data Dictionary Architecture
+
+MySQL 8.0 and MariaDB store table metadata in fundamentally different ways, and this affects how you migrate:
+
+- **MySQL 8.0** keeps all object metadata in a [transactional data dictionary](https://dev.mysql.com/doc/refman/8.0/en/data-dictionary.html) stored in InnoDB (`mysql.ibd`), and **removed the per-table `.frm` files**.
+- **MariaDB** keeps the file-based approach — a `.frm` file per table plus storage-engine metadata — and has no transactional data dictionary. (MariaDB grant tables use the Aria engine; MySQL 8.0 holds system tables in the InnoDB dictionary.)
+
+Practical consequences:
+
+- **Do not migrate by copying data files.** InnoDB tablespaces and datadir files are **not** portable between MySQL 8.0 and MariaDB — the dictionary formats are incompatible. Use a logical dump/restore instead. MariaDB's [migration guide](https://mariadb.com/docs/server/server-management/install-and-upgrade-mariadb/migrating-to-mariadb/moving-from-mysql/mysql-to-mariadb-migration-the-master-guide) recommends MySQL's own `mysqldump` for this direction (not `mariadb-dump`, which isn't well tested against MySQL), dumping named databases rather than `--all-databases` so MySQL's system tables aren't imported.
+- **No in-place downgrade** from MySQL 8.0 to MariaDB — MariaDB cannot read MySQL's data dictionary; a logical export/import is required.
+- **`INFORMATION_SCHEMA` is implemented differently** — MySQL 8.0 queries indexed dictionary tables, while MariaDB builds I_S views dynamically; metadata-heavy queries against I_S can have different performance characteristics, so don't assume MySQL 8.0 timings carry over.
 
 ## Optimizer Differences
 
