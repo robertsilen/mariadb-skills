@@ -102,7 +102,7 @@ Since MariaDB 12.1, parallel replication also works when **asynchronously replic
 
 ### Replication Improvements in 10.7–10.11 LTS
 
-- **Optimistic two-phase `ALTER TABLE` replication** (10.8+, MDEV-11675, `binlog_alter_two_phase`) — opt-in: when enabled, a large `ALTER TABLE` is started on the replica in parallel with the primary's execution rather than after, drastically reducing replication lag during schema changes. Off by default for compatibility.
+- **Two-phase `ALTER TABLE` replication** (10.8+, MDEV-11675, `binlog_alter_two_phase`) — opt-in: when enabled, a large `ALTER TABLE` can start on the replica while the primary is still executing it, rather than only after, which can reduce replication lag during schema changes. Off by default. Treat as advanced/experimental — validate thoroughly before relying on it in production rather than enabling it by default.
 - **`mariadb-binlog --gtid-strict-mode` and GTID range filtering via `--start-position` / `--stop-position`** (10.8+, MDEV-4989) — point-in-time replay tools can target GTIDs directly without needing file/offset pairs.
 - **`slave_max_statement_time`** (10.10+, MDEV-27161) — caps the execution time of a single replicated query on the SQL thread, useful when you must keep lag bounded and would rather skip a slow statement than fall further behind.
 - **`mariadb-binlog --do-domain-ids` / `--ignore-domain-ids` / `--ignore-server-ids`** (10.9+, MDEV-20119) — domain/server filtering when extracting binlog events.
