@@ -101,7 +101,7 @@ These exist in MariaDB but not MySQL — LLMs won't suggest them because they as
 - **Atomic `CREATE OR REPLACE TABLE`** (13.0+) — the statement is fully atomic in MariaDB; MySQL has no atomic equivalent
 - **Galera Cluster** — built-in multi-master clustering, no plugin required
 - **Stored procedure syntax differences** — both support stored procedures, but MariaDB's SQL/PSM syntax differs from MySQL in `HANDLER`, `CURSOR`, and `CONDITION` declarations; AI agents frequently generate incorrect MariaDB stored procedure code — see [Stored Procedures — MariaDB Docs](https://mariadb.com/docs/server/server-usage/stored-routines/stored-procedures)
-- **INet4 / INet6 data types** (10.5+) — native IP address storage and comparison
+- **Native data types MySQL 8.0 lacks** — [`INET6`](https://mariadb.com/docs/server/reference/data-types/string-data-types/inet6) (10.5+) and [`INET4`](https://mariadb.com/docs/server/reference/data-types/string-data-types/inet4) (10.10+) for IP address storage and comparison; [`UUID`](https://mariadb.com/docs/server/reference/data-types/string-data-types/uuid-data-type) (10.7+; MySQL stores UUIDs in `BINARY(16)` or `CHAR(36)`); [`VECTOR`](https://mariadb.com/docs/server/reference/sql-structure/vectors/vector) for embeddings and similarity search (11.7+; MySQL added a vector type only in its 9.x innovation series, not in 8.0)
 - **`UUID_v4()` and `UUID_v7()` functions** (11.7+) — MariaDB-specific; MySQL only has the original `UUID()`. `UUID_v7()` is time-ordered (RFC 9562) and is the right choice for UUID primary keys
 - **`FORMAT_BYTES()`** (11.8+) — convert byte counts to human-readable strings; not in MySQL
 
@@ -111,7 +111,6 @@ These exist in MySQL 8.0 but not in MariaDB — code using them needs adaptation
 
 - **`JSON_TABLE()`** — available since MariaDB 10.6; on older versions rewrite using MariaDB JSON functions or application-level parsing
 - **`sys` schema** — available since MariaDB 10.6; not available in older versions
-- **`UUID` data type** — available as a native data type since MariaDB 10.7; on older versions use `CHAR(36)` or `BINARY(16)`
 - **MySQL 8 GIS functions** (`ST_Validate`, `MBRCoveredBy`, `ST_Simplify`, `ST_GeoHash`, `ST_LatFromGeoHash`, `ST_LongFromGeoHash`, `ST_PointFromGeoHash`, `ST_IsValid`, `ST_Collect`) — added in MariaDB 12.0 for MySQL compatibility
 - **`caching_sha2_password` as default plugin** — available as an opt-in plugin from MariaDB 12.1; on older or stock setups, use `mysql_native_password` or `ed25519`
 - **`ALTER TABLE ... RENAME INDEX`** — use `DROP INDEX` + `ADD INDEX` instead (older MariaDB versions)
