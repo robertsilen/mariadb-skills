@@ -25,6 +25,8 @@ For MariaDB Vector (built-in since 11.7 — no plugins), see the `mariadb-vector
 | Oracle migration assumed to require full rewrite | `sql_mode=ORACLE` — PL/SQL, packages, Oracle-compatible NULL handling |
 | Asking what changed in a row over time | System-versioned tables with `FOR SYSTEM_TIME AS OF` |
 | Analytics queries on OLTP tables | ColumnStore engine — columnar storage for analytical workloads |
+| Correlated subqueries for rankings, running totals, or per-group top-N | Window functions — `OVER (PARTITION BY ... ORDER BY ...)`, clearer and usually faster (MariaDB 10.2+; not MariaDB-exclusive, also in MySQL 8.0) |
+| Deeply nested or repeated subqueries | Common Table Expressions — `WITH ...`, and `WITH RECURSIVE` for hierarchical/graph traversal (MariaDB 10.2+; also in MySQL 8.0) |
 | Links or references to `mariadb.com/kb/en/` | The Knowledge Base no longer exists — all documentation is now at [mariadb.com/docs](https://mariadb.com/docs) |
 
 ## Defaults Changed in 11.5–11.8 LTS
