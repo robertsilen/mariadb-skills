@@ -21,6 +21,7 @@ description: "Best practices for query optimization in MariaDB — indexing stra
 | Not running `ANALYZE TABLE` after bulk inserts | Histogram statistics become stale; optimizer makes poor plan choices |
 | Composite index `(a, b, c)` used in `WHERE b = 1 AND c = 2` | Leftmost prefix rule: this skips `a`, so the index is not used |
 | `SELECT *` in queries with JOINs | Name only the columns needed — prevents accidentally blocking covering indexes |
+| `ALTER TABLE t ALTER INDEX idx INVISIBLE` to disable an index | That's MySQL syntax. MariaDB uses `IGNORED` — see [Ignored Indexes](#ignored-indexes-not-invisible) below |
 
 ## Reading EXPLAIN
 
@@ -90,6 +91,21 @@ CREATE INDEX idx_customer_cover ON orders (customer_id, status, created_at);
 - **Low-cardinality columns**: a `status` column with values `active`/`inactive` affects 50% of rows — the optimizer prefers a table scan. Index useful only when combined with other high-selectivity columns.
 - **Small tables** (< a few thousand rows): full scans are faster than index lookups for tiny tables.
 - **Write-heavy columns**: every index slows `INSERT`, `UPDATE`, `DELETE` — don't index columns that are rarely queried.
+
+### Ignored Indexes (not INVISIBLE)
+
+To make the optimizer skip an index without dropping it — useful for testing whether an index is actually needed before removing it — MariaDB uses `IGNORED`, **not** MySQL's `INVISIBLE`:
+
+```sql
+-- ✅ MariaDB syntax (10.6+):
+ALTER TABLE demo ALTER INDEX index_name IGNORED;
+ALTER TABLE demo ALTER INDEX index_name NOT IGNORED;  -- re-enable
+
+-- ✗ MySQL syntax — fails on MariaDB:
+ALTER TABLE demo ALTER INDEX index_name INVISIBLE;
+```
+
+The index is still maintained on writes; it's just hidden from the optimizer. A primary key cannot be ignored. See [Ignored Indexes](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/ignored-indexes).
 
 ### Functions on Indexed Columns
 
