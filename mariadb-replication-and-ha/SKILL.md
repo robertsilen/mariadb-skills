@@ -82,7 +82,7 @@ SET GLOBAL gtid_domain_id = 2;   -- on primary B
 
 Assigning a distinct domain ID per server otherwise complicates the GTID position and loses the single ordered binlog stream. See [Global Transaction ID](https://mariadb.com/docs/server/ha-and-performance/standard-replication/gtid).
 
-Since MariaDB 13.0, `default_master_connection` can be set at the global level — convenient for replicas that connect to one logical "primary" source across multiple servers without specifying the connection name in every replication command.
+In multi-source replication, replication commands and variables (`START SLAVE`, `SHOW SLAVE STATUS`, …) act on the connection named by `default_master_connection`. It was session-only — you had to `SET SESSION default_master_connection='name'` in each session before issuing commands for that source. Since MariaDB 13.0 ([MDEV-9247](https://mariadb.com/docs/release-notes/community-server/13.0/mariadb-13.0-changes-and-improvements)) it can also be set **globally**, making a chosen named connection the default for all sessions.
 
 ### Parallel Replication
 
