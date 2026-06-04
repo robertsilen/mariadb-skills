@@ -68,7 +68,7 @@ cur.execute(
 Use `VEC_FromText()` only for hand-written SQL / CLI:
 
 ```sql
-INSERT INTO documents (embedding) VALUES (VEC_FromText('[0.12, -0.34, 0.56, ...]'));
+INSERT INTO documents (content, embedding) VALUES ('your text here', VEC_FromText('[0.12, -0.34, 0.56, ...]'));
 ```
 
 ### Query: Find Nearest Neighbors
@@ -98,6 +98,8 @@ Use `VEC_DISTANCE_EUCLIDEAN()` or `VEC_DISTANCE_COSINE()` for unindexed columns 
 |---|---|
 | `VEC_FromText('[0.1, 0.2, ...]')` | Convert JSON float array to VECTOR binary |
 | `VEC_ToText(vector_col)` | Convert VECTOR binary to readable JSON array |
+
+**Always wrap a VECTOR column in `VEC_ToText()` when you want to read it.** A `VECTOR` is stored as packed binary floats, so `SELECT embedding FROM documents` returns the raw bytes — they render as unreadable gibberish in a CLI or client. Use `SELECT VEC_ToText(embedding) FROM documents` to get the `[0.12, -0.34, ...]` array instead.
 
 ## MariaDB Vector Gotchas
 
