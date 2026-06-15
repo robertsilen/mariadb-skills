@@ -5,7 +5,7 @@ description: "Best practices for query optimization in MariaDB — indexing stra
 
 # MariaDB Query Optimization
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-05*
 
 > **Requires:** MariaDB 10.1+ for `ANALYZE` and histograms; optimizer improvements through **11.8 LTS** (GA May 2025) form the baseline below.
 >
@@ -22,10 +22,44 @@ description: "Best practices for query optimization in MariaDB — indexing stra
 | Composite index `(a, b, c)` used in `WHERE b = 1 AND c = 2` | Leftmost prefix rule: this skips `a`, so the index is not used |
 | `SELECT *` in queries with JOINs | Name only the columns needed — prevents accidentally blocking covering indexes |
 | `ALTER TABLE t ALTER INDEX idx INVISIBLE` to disable an index | That's MySQL syntax. MariaDB uses `IGNORED` — see [Ignored Indexes](#ignored-indexes-not-invisible) below |
+| Jump straight to `EXPLAIN` or indexes on a slow server | Enable [Performance Schema](https://mariadb.com/docs/server/reference/system-tables/performance-schema/performance-schema-overview) at **startup** first — it is **off by default** and cannot be turned on at runtime |
+| `SET GLOBAL performance_schema = ON` to enable monitoring | Performance Schema requires `performance_schema=ON` in `my.cnf` and a **server restart** |
+
+## Performance Schema (enable first)
+
+Before `EXPLAIN`, indexes, or query rewrites, confirm the server can observe what queries are doing. MariaDB's [Performance Schema](https://mariadb.com/docs/server/reference/system-tables/performance-schema/performance-schema-overview) is the built-in monitoring layer (10.5+: ~80 tables in the `performance_schema` database).
+
+**Check status:**
+
+```sql
+SHOW VARIABLES LIKE 'performance_schema';
+```
+
+**Critical:** Performance Schema is **disabled by default** and **cannot be enabled at runtime**. If `OFF`, add to `my.cnf` and restart:
+
+```ini
+[mysqld]
+performance_schema=ON
+```
+
+**After restart**, enable the consumers and instruments you need. Scope with `WHERE NAME LIKE '...'` rather than enabling everything blindly in production — see the overview doc:
+
+```sql
+UPDATE performance_schema.setup_consumers SET ENABLED = 'YES';
+UPDATE performance_schema.setup_instruments SET ENABLED = 'YES', TIMED = 'YES';
+```
+
+Use `performance_schema` (waits, stages, statements, and related summary tables) to see where time goes; then use `EXPLAIN` and `ANALYZE` below to understand why the optimizer chose a plan. On **10.7.1+**, column comments help interpret tables:
+
+```sql
+SELECT column_name, column_comment
+  FROM information_schema.columns
+ WHERE table_schema = 'performance_schema' AND table_name = 'events_statements_summary_by_digest';
+```
 
 ## Reading EXPLAIN
 
-Run `EXPLAIN` before tuning anything:
+With Performance Schema available when diagnosing production slowness, run `EXPLAIN` to inspect the optimizer's plan:
 
 ```sql
 EXPLAIN SELECT * FROM orders WHERE customer_id = 42 ORDER BY created_at DESC LIMIT 10;
@@ -332,16 +366,18 @@ When the cap is reached the query returns a **partial result set** plus a warnin
 
 Before adding indexes or rewriting queries, check these first:
 
-1. `EXPLAIN` the slow query — confirm where the time actually is
-2. `ANALYZE TABLE` — stale statistics cause bad plans
-3. Check for functions on indexed columns in `WHERE` — note many cases are now sargable on 11.4+ (`YEAR()`, `DATE()`, `UPPER()` on `_ci` collations)
-4. Check for `OFFSET` in pagination queries
-5. Verify composite index column order matches query predicates (leftmost prefix)
-6. Check `EXPLAIN` Extra column for `Using filesort` or `Using temporary` — these often point to a missing or misordered index
+1. Confirm `performance_schema=ON` at startup (restart required if off) — [Performance Schema Overview](https://mariadb.com/docs/server/reference/system-tables/performance-schema/performance-schema-overview)
+2. `EXPLAIN` the slow query — confirm where the time actually is
+3. `ANALYZE TABLE` — stale statistics cause bad plans
+4. Check for functions on indexed columns in `WHERE` — note many cases are now sargable on 11.4+ (`YEAR()`, `DATE()`, `UPPER()` on `_ci` collations)
+5. Check for `OFFSET` in pagination queries
+6. Verify composite index column order matches query predicates (leftmost prefix)
+7. Check `EXPLAIN` Extra column for `Using filesort` or `Using temporary` — these often point to a missing or misordered index
 
 ## Sources
 
 - [Query Optimizations — MariaDB Docs](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations)
+- [Performance Schema Overview — MariaDB Docs](https://mariadb.com/docs/server/reference/system-tables/performance-schema/performance-schema-overview)
 - [EXPLAIN — MariaDB Docs](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/explain)
 - [optimizer_switch — MariaDB Docs](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/query-optimizations/optimizer-switch)
 - [Getting Started with Indexes — MariaDB Docs](https://mariadb.com/docs/server/mariadb-quickstart-guides/mariadb-indexes-guide)
