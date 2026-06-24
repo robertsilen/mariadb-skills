@@ -47,6 +47,23 @@ Since MariaDB 10.5, all command-line tools use `mariadb-` prefixed names. Always
 | `mysqlimport` | `mariadb-import` |
 | `mysqlshow` | `mariadb-show` |
 
+## Provisioning and Initial Setup
+
+AI agents default to MySQL 8 patterns for initial setup, which fail or mislead on MariaDB.
+
+**Database initialization** — use `mariadb-install-db` (not `mysqld --initialize`, which is MySQL-specific):
+```bash
+mariadb-install-db
+```
+
+**Root authentication** — on a fresh install, `root` uses `unix_socket` authentication by default (no password). The correct first connection is:
+```bash
+sudo mariadb
+```
+Do not generate `mysql -u root -p` for a fresh MariaDB install — there is no root password to enter.
+
+**Secure installation** — use `mariadb-secure-installation` (not `mysql_secure_installation`).
+
 ## Defaults Changed in 11.5–11.8 LTS
 
 The current LTS (11.8) flipped several long-standing defaults. New installations behave differently from older ones — relevant when migrating or comparing behavior:
