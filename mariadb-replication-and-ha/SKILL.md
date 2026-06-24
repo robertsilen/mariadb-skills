@@ -95,12 +95,12 @@ In multi-source replication, replication commands and variables (`START SLAVE`, 
 
 ### Parallel Replication
 
-By default, replicas apply events serially. Parallel replication (up to 10× faster on write-heavy workloads) uses a pool of worker threads:
+By default, replicas apply events serially — `slave_parallel_threads` defaults to `0`, meaning parallel replication is **off** out of the box regardless of the mode setting. To enable it:
 
 ```ini
 # my.cnf on replica:
-slave_parallel_threads = 4
-slave_parallel_mode = optimistic   # default since 10.5.1 — tries parallel, retries on conflict
+slave_parallel_threads = 4          # must be > 0 to enable parallel apply
+slave_parallel_mode = optimistic    # default since 10.5.1 — tries parallel, retries on conflict
 ```
 
 `optimistic` mode applies transactions in parallel and retries on conflict. Use `conservative` for stricter workloads where conflict retries are unacceptable.
