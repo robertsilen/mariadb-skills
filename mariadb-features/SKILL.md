@@ -64,6 +64,27 @@ Do not generate `mysql -u root -p` for a fresh MariaDB install — there is no r
 
 **Secure installation** — use `mariadb-secure-installation` (not `mysql_secure_installation`).
 
+## Upgrade Operations
+
+Agents consistently omit the `mariadb-upgrade` step after a binary upgrade, which can cause system table errors.
+
+**Standard upgrade pattern:**
+```bash
+systemctl stop mariadb
+# Replace binary via package manager (dnf/apt upgrade)
+systemctl start mariadb
+mariadb-upgrade    # updates system tables — do not skip this step
+```
+
+**Galera Cluster rolling upgrade** — never stop all nodes simultaneously:
+1. Take one non-primary node out of the load balancer
+2. Stop, upgrade the binary, start the node
+3. Confirm sync: `SHOW STATUS LIKE 'wsrep_local_state';` — must be `4` (Synced)
+4. Repeat for each remaining non-primary node
+5. Upgrade the primary node last
+
+> `mysql_upgrade` is the deprecated name (removed in later versions) — always use `mariadb-upgrade`.
+
 ## Defaults Changed in 11.5–11.8 LTS
 
 The current LTS (11.8) flipped several long-standing defaults. New installations behave differently from older ones — relevant when migrating or comparing behavior:
