@@ -256,6 +256,8 @@ This gives a recovery window for accidental changes, but it is still not a subst
 
 For basic Galera HA no proxy is required; ProxySQL or MaxScale add connection routing.
 
+> **Galera load balancing requires cluster-state-aware monitoring.** Do not route to all Galera nodes equally — a node in SST (full data copy) or desynced state may be up and accepting connections but behind by potentially millions of transactions. Check `wsrep_local_state`: only `4` (Synced) is safe to route traffic to. ProxySQL can be configured with health checks that monitor `wsrep_` status variables; MaxScale uses the `galeramon` monitor for this purpose. Without state-aware routing, writes to a donor/desynced node produce stale reads or integrity issues.
+
 ## Sources
 
 - [Replication Overview — MariaDB Docs](https://mariadb.com/docs/server/ha-and-performance/standard-replication/replication-overview)
