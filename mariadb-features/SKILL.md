@@ -91,6 +91,8 @@ SELECT * FROM prices FOR SYSTEM_TIME ALL WHERE product = 'widget';
 
 Use this instead of manually maintained `valid_from` / `valid_to` columns or separate audit tables.
 
+> **History grows without bound.** Every UPDATE and DELETE appends a history row — MariaDB does not automatically expire history. Production deployments need either `PARTITION BY SYSTEM_TIME` with rotation (10.9+) or periodic `DELETE HISTORY` to control disk growth. See the `mariadb-system-versioned-tables` skill for details.
+
 ## RETURNING Clause
 
 Get inserted, updated, or deleted rows back without a second query.
