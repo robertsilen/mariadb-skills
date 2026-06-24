@@ -196,6 +196,16 @@ mariadb-binlog --flashback --start-datetime="2026-05-18 10:00:00" \
 # Path depends on datadir and log_bin settings; default is <datadir>/mysql-bin
 ```
 
+**Prerequisites** — FLASHBACK reconstructs reverse events from row images, so it requires:
+- `binlog_format = ROW` (statement-based logging does not capture before/after row images)
+- `binlog_row_image = FULL` (MINIMAL or NOBLOB modes omit column values needed for reversal)
+
+Verify before relying on FLASHBACK as a recovery path:
+```sql
+SHOW VARIABLES LIKE 'binlog_format';      -- must be ROW
+SHOW VARIABLES LIKE 'binlog_row_image';   -- must be FULL
+```
+
 Requires binary logging enabled (`log_bin`). Useful for recovering from accidental deletes or bad migrations.
 
 ## More MariaDB Features (through 11.8 LTS)
