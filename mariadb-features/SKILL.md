@@ -30,6 +30,23 @@ For MariaDB Vector (built-in since 11.7 — no plugins), see the `mariadb-vector
 | Assuming `JSON` is a native binary type as in MySQL 8.0 | In MariaDB `JSON` is an alias for `LONGTEXT COLLATE utf8mb4_bin` with an automatic `JSON_VALID()` CHECK constraint — stored as text, not MySQL's binary layout, and comparison is string-based. The JSON functions work the same. See [JSON Data Type](https://mariadb.com/docs/server/reference/data-types/string-data-types/json) |
 | Links or references to `mariadb.com/kb/en/` | The Knowledge Base no longer exists — all documentation is now at [mariadb.com/docs](https://mariadb.com/docs) |
 
+## Command-Line Tool Names (10.5+)
+
+Since MariaDB 10.5, all command-line tools use `mariadb-` prefixed names. Always generate the current names — the old `mysql*` names are retained as symlinks for compatibility but may be absent on minimal or container installs.
+
+| Deprecated name | Current name |
+|---|---|
+| `mysql` | `mariadb` |
+| `mysqldump` | `mariadb-dump` |
+| `mysqladmin` | `mariadb-admin` |
+| `mysqlbinlog` | `mariadb-binlog` |
+| `mysql_upgrade` | `mariadb-upgrade` |
+| `mysql_secure_installation` | `mariadb-secure-installation` |
+| `mysql_install_db` | `mariadb-install-db` |
+| `mysqlcheck` | `mariadb-check` |
+| `mysqlimport` | `mariadb-import` |
+| `mysqlshow` | `mariadb-show` |
+
 ## Defaults Changed in 11.5–11.8 LTS
 
 The current LTS (11.8) flipped several long-standing defaults. New installations behave differently from older ones — relevant when migrating or comparing behavior:
