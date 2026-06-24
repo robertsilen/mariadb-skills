@@ -5,7 +5,7 @@ description: "Best practices for MariaDB replication and high availability — G
 
 # MariaDB Replication and High Availability
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-24*
 
 MariaDB offers three tiers of replication depending on your consistency and availability requirements:
 
