@@ -191,7 +191,9 @@ Available since MariaDB 10.2. Roll back tables to a previous state using the bin
 
 ```bash
 # Generate reverse SQL from the binary log and pipe it back to MariaDB:
-mariadb-binlog --flashback --start-datetime="2026-05-18 10:00:00" /var/log/mysql/mysql-bin.000001 | mariadb
+mariadb-binlog --flashback --start-datetime="2026-05-18 10:00:00" \
+  /var/lib/mysql/mysql-bin.000001 | mariadb
+# Path depends on datadir and log_bin settings; default is <datadir>/mysql-bin
 ```
 
 Requires binary logging enabled (`log_bin`). Useful for recovering from accidental deletes or bad migrations.
