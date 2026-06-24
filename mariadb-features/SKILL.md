@@ -283,7 +283,12 @@ Additional capabilities on the current LTS baseline and supported older releases
 ### Developer Tools
 - **`EXPLAIN` in slow query log** — automatic execution plan logging for slow queries
 - **Progress reporting** for `ALTER TABLE` and `CHECK TABLE`
-- **`mariadb-backup`** — hot backup with backup locks (no `FLUSH TABLES WITH READ LOCK`)
+- **`mariadb-backup`** (10.1+) — hot backup with backup locks (no `FLUSH TABLES WITH READ LOCK`). A backup requires **two steps** — the `--prepare` step is mandatory before restore:
+  ```bash
+  mariadb-backup --backup --user=root --target-dir=/backup/full
+  mariadb-backup --prepare --target-dir=/backup/full   # apply redo logs — without this, the backup cannot be restored
+  ```
+  For Galera clusters, add `--galera-info` to capture the wsrep state for clean cluster rejoin. Do not use `innobackupex` or `xtrabackup` — `mariadb-backup` is the correct tool for MariaDB (included since 10.1, replacing the Percona dependency).
 - **Non-blocking client API** — async queries without threads
 
 ## Newer releases (12.x / 13.0)
