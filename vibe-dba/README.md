@@ -122,5 +122,13 @@ metrics collector writes gzipped streams with `#TS` timestamp markers.
 
 ## Credits
 
-The collector was written by Frédéric "lefred" Descamps, who also shaped the
-approach this skill is built on.
+Developed by [@robertsilen](https://github.com/robertsilen) based on DBA skills by
+[@lefred](https://github.com/lefred) and an idea by
+[@kajarnocom](https://github.com/kajarnocom).
+
+Install:
+
+```sh
+git clone https://github.com/MariaDB/skills.git
+cd skills && claude "dba"
+```

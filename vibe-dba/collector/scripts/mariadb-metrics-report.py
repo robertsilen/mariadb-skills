@@ -51,6 +51,18 @@ PALETTE = [
 # Timestamp formats written by the collector.
 TS_FORMATS = ("%Y-%m-%d_%H-%M-%S", "%Y-%m-%d %H:%M:%S")
 
+# MariaDB Foundation logo, inverted variant for dark backgrounds. Loaded from
+# the web so no binary asset is carried in this repository; the alt text keeps
+# the header readable when the report is opened offline.
+LOGO_URL = (
+    "https://raw.githubusercontent.com/MariaDB/.github/main"
+    "/assets/logos/png/mariadb_org_inv_rgb_h.png"
+)
+LOGO_ALT = "MariaDB Foundation"
+
+REPORT_TITLE = "MariaDB Foundation AI DBA Server Inventory"
+INSTALL_COMMANDS = 'git clone https://github.com/MariaDB/skills.git\ncd skills && claude "dba"'
+
 # How a chart's time axis was derived.
 TIME_EXACT = "exact"  # from #TS markers in the stream
 TIME_EVEN = "even"  # spread evenly across the collection window
@@ -827,6 +839,7 @@ def render_html(
 ) -> str:
     cards = "\n".join(render_chart(chart, idx) for idx, chart in enumerate(charts))
     summary = render_summary(window, charts)
+    appendix = render_credits(datetime.now())
     approx = any(chart.time_source == TIME_EVEN for chart in charts)
     note = (
         '<div class="note">Charts marked <em>approximate time</em> come from tools '
@@ -871,8 +884,42 @@ header {{
 h1 {{ margin: 0; font-size: 22px; font-weight: 650; letter-spacing: 0; }}
 .sub {{ margin-top: 4px; color: var(--muted); font-size: 12px; }}
 .window {{ margin-top: 6px; color: var(--accent); font-size: 13px; }}
+.logo {{
+  height: 40px;
+  width: auto;
+  max-width: 220px;
+  display: block;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}}
 main {{ padding: 20px 24px 36px; }}
 .note {{ color: var(--muted); font-size: 12px; margin-bottom: 14px; }}
+.appendix {{
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}}
+.appendix h2 {{
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}}
+.appendix p {{ margin: 3px 0; }}
+.appendix pre {{
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  color: var(--text);
+  font-size: 12px;
+  margin: 8px 0 0;
+}}
 .summary {{
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -920,7 +967,8 @@ svg {{ width: 100%; height: 260px; display: block; }}
 </head>
 <body>
 <header>
-  <h1>MariaDB Metrics Report</h1>
+  <img class="logo" src="{LOGO_URL}" alt="{LOGO_ALT}">
+  <h1>{html.escape(REPORT_TITLE)}</h1>
   <div class="window">Collection window: {html.escape(format_window(window))}</div>
   <div class="sub">Input: {html.escape(str(input_path))} · Parsed directory: {html.escape(str(metrics_dir))}</div>
 </header>
@@ -930,6 +978,7 @@ svg {{ width: 100%; height: 260px; display: block; }}
 <section class="grid">
 {cards or '<div class="empty card">No supported metric streams found.</div>'}
 </section>
+{appendix}
 </main>
 </body>
 </html>
@@ -949,6 +998,20 @@ def render_summary(window: Window, charts: list[Chart]) -> str:
   <div class="stat"><div class="label">Charts</div><div class="value">{len(charts)}</div></div>
   <div class="stat"><div class="label">Series</div><div class="value">{series}</div></div>
   <div class="stat"><div class="label">Data Points</div><div class="value">{points}</div></div>
+</section>
+"""
+
+
+def render_credits(generated: datetime) -> str:
+    stamp = generated.strftime("%Y-%m-%d %H:%M")
+    return f"""
+<section class="appendix">
+  <h2>Credits</h2>
+  <p>{html.escape(REPORT_TITLE)} created {html.escape(stamp)}</p>
+  <p>Auditor: Claude Code with Vibe DBA skill</p>
+  <p>Developed by @robertsilen based on DBA skills by @lefred and an idea by @kajarnocom</p>
+  <p style="margin-top:10px">Install:</p>
+  <pre>{html.escape(INSTALL_COMMANDS)}</pre>
 </section>
 """
 
