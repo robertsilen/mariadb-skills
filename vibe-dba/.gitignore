@@ -1,0 +1,14 @@
+# Local working files — not part of this repository.
+material/
+plan.md
+
+# Compiled collector binaries — built locally, not shipped in git.
+collector/mariadb-envcollect
+collector/mariadb-metrics
+
+# Collector output and generated reports.
+*_environment_*/
+*_metrics_*/
+*.tgz
+*-report.html
+metrics-report.html

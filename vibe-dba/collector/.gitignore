@@ -1,0 +1,7 @@
+# Compiled binaries at the module root.
+# Anchored with a leading slash so the cmd/mariadb-envcollect and
+# cmd/mariadb-metrics source directories are not matched too.
+/mariadb-envcollect
+/mariadb-metrics
+
+scripts/__pycache__/
