@@ -61,8 +61,8 @@ the generated tarball.
 Create a self-contained dark HTML report from a metrics directory or package:
 
 ```sh
-python3 scripts/mariadb-metrics-report.py /tmp/host_metrics_2026-06-26_10-00-00
-python3 scripts/mariadb-metrics-report.py /tmp/host_metrics_2026-06-26_10-00-00.tgz -o report.html
+python3 scripts/mariadb-report.py /tmp/host_metrics_2026-06-26_10-00-00
+python3 scripts/mariadb-report.py /tmp/host_metrics_2026-06-26_10-00-00.tgz -o report.html
 ```
 
 If no path is provided, the script asks for one. It recognizes the collector streams

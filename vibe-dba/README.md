@@ -6,119 +6,134 @@
 you can read.
 
 The other skills in this repository are briefings — they tell an AI agent what it
-gets wrong about MariaDB. Vibe DBA is different: it runs against a real server and
-reports on what it finds.
-
-It has three layers, and today the first two exist:
+gets wrong about MariaDB. Vibe DBA is different: it runs against a real server.
 
 | Layer | What it does | Status |
 |---|---|---|
-| **1. Collect** | Two Go binaries gather environment data and sample metrics over time | working |
-| **2. Report** | A Python script turns sampled metrics into an HTML report with charts | partial — metrics only |
+| **1. Collect** | Two Go binaries: a snapshot of the server, and metrics sampled over time | working |
+| **2. Report** | A Python script turns the collected data into an HTML report | working |
 | **3. Analyse** | A `SKILL.md` for an AI agent to read the report and advise | not started |
 
-The collector runs on (or against) the database server with no AI involved. The
-collected data is then moved to wherever you want to analyse it. Nothing about
-layers 1 and 2 requires an AI — you can run both and read the result yourself.
+**No AI is involved in layers 1 and 2.** The collector runs on the database server;
+the collected files are moved to wherever you want to analyse them. You can run both
+and read the result yourself.
 
-## Requirements
+## Quick start
 
-- Go 1.24+ to build the collector
-- Python 3.9+ to generate the report (standard library only, no packages to install)
-- A MariaDB user with read access
-
-## Build
+Needs Go 1.24+ to build, Python 3.9+ to report (standard library only), and a
+MariaDB user with read access.
 
 ```sh
 cd collector
-go build ./cmd/mariadb-envcollect
-go build ./cmd/mariadb-metrics
+go build ./cmd/mariadb-envcollect ; go build ./cmd/mariadb-metrics
+
+./mariadb-envcollect -out /tmp/collect/env -package=false -cleanup=false
+./mariadb-metrics    -out /tmp/collect     -duration 5m -package=false -cleanup=false
+
+python3 scripts/mariadb-report.py /tmp/collect -o report.html
 ```
 
-Two self-contained binaries with no runtime dependencies. Cross-compile for the
-target server with `GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-metrics`.
+The metrics run blocks for its full duration. The report script takes the parent
+directory and finds both collections underneath it.
 
-## Collect
+## Collecting
 
-**Environment** — a one-off snapshot of the server, its configuration, and the
-schema. Static things that don't change minute to minute:
+**`mariadb-envcollect`** takes a one-off snapshot: version, configuration, schema,
+accounts, sizes. Seconds to run.
 
-```sh
-./mariadb-envcollect -out /tmp/collect
-```
+**`mariadb-metrics`** samples counters over a window. This is the one that matters.
 
-**Metrics** — samples counters over a window. This is the one that matters:
-
-```sh
-./mariadb-metrics -out /tmp/collect -duration 5m
-```
-
-> **Run it across the period you care about.** A counter read once tells you almost
+> **Collect across the period you care about.** A counter read once tells you almost
 > nothing, and a quiet window tells you nothing about a busy one. If the problem
-> happens Monday at 17:00, collect Monday from 16:30 to 17:30.
+> happens Monday at 17:00, collect Monday 16:30 to 17:30. Under five minutes and the
+> report will say so rather than pretend otherwise.
 
-Connection options — the collector shells out to the `mariadb` client, so it picks
-up your usual configuration:
+The collectors shell out to the `mariadb` client, so they pick up your usual
+configuration. Point them somewhere else with `-mariadb-conn`,
+`-mariadb-defaults-file`, or `-mariadb-host` / `-mariadb-user` / `-mariadb-password`;
+the matching `MARIADB_*` environment variables work too. Run `-h` for the full list.
 
-```sh
-./mariadb-metrics -mariadb-conn mariadb://user:pass@host:3306
-./mariadb-metrics -mariadb-defaults-file /root/.my.cnf
-./mariadb-metrics -mariadb-host db01 -mariadb-user collector
-```
-
-Both commands also read `MARIADB_HOST`, `MARIADB_USER`, `MARIADB_PASSWORD`,
-`MARIADB_SOCKET`, `MARIADB_DEFAULTS_FILE`, and `MARIADB_CONN`.
-
-Running from your laptop instead of on the server? Add `-rds` to skip the
-operating-system collection that only works locally:
+Collecting over the network rather than on the server — a managed instance, or no
+shell access — add `-rds` to skip the operating-system data that only works locally:
 
 ```sh
-./mariadb-metrics -rds -duration 5m -mariadb-host db.example.com -mariadb-user collector
+./mariadb-metrics -rds -duration 10m -mariadb-host db.example.com -mariadb-user collector
 ```
 
-Use `-package` to bundle the output into a `.tgz` for transfer.
-
-## Report
+Add `-package` to bundle the output into a `.tgz` for transfer. The report script
+reads a `.tgz` directly, so a real two-machine run is:
 
 ```sh
-python3 scripts/mariadb-metrics-report.py /tmp/collect/<host>_metrics_<timestamp>
+# on the server
+./mariadb-metrics -out /tmp -duration 10m -package -cleanup
+# on your laptop
+scp server:/tmp/*_metrics_*.tgz .
+python3 scripts/mariadb-report.py *_metrics_*.tgz -o report.html
 ```
 
-Writes a self-contained HTML file — inline SVG charts, no JavaScript, no external
-resources. It accepts either a collected directory or a `.tgz` package, and `-o`
-sets the output path.
+## Reading the report
 
-Charts are plotted against real clock time taken from the collector's timestamps,
-so you can line a spike up against something you remember happening. Counters are
-converted to per-second rates using the actual elapsed time between samples, which
-keeps rates honest when sampling slips on a loaded server.
+A single self-contained HTML file — nine sections plus appendices, charts drawn as
+inline SVG, nothing loaded from the network except the logo.
+
+- **Light by default**, with a dark mode button. Your choice is remembered.
+- **Print or save as PDF** and it always comes out light, with sections, tables and
+  charts kept whole across page breaks.
+- **Charts use real clock time** from the collector's timestamps, so you can line a
+  spike up against something you remember happening. Counter rates are computed from
+  the actual elapsed time between samples, which keeps them honest when sampling
+  slips on a loaded server.
+- **Every number is measured, not inferred.** Where something could not be collected
+  — Performance Schema switched off, no metrics window — the report says so instead
+  of leaving a gap.
+
+### Who wrote what
+
+Everything is mechanically generated unless it is labelled `AI ANALYSIS` or
+`DBA NOTE`. Marked blocks are additions on top of the measured data: remove them and
+the report still stands.
+
+Annotations live in a separate JSON file rather than being edited into the HTML, so
+regenerating the report never loses them:
+
+```sh
+python3 scripts/mariadb-report.py /tmp/collect --annotations notes.json -o report.html
+```
+
+```json
+{"annotations": [
+  {"section": "schema", "source": "human", "author": "Robert Silén",
+   "timestamp": "2026-08-08", "body": "load_test is synthetic. Ignore it in sizing."}
+]}
+```
+
+`section` is one of `summary`, `identity`, `innodb`, `connections`, `performance`,
+`schema`, `security`, `features`, `replication`. `source` is `ai` or `human`.
 
 ## What is collected
 
-Everything is read-only. No `SET`, no writes, no schema changes.
+Read-only throughout: `SELECT` and `SHOW` statements, plus reads of configuration
+and system files. Nothing is written and no setting is changed.
 
-**Environment:** server version and variables, global status, InnoDB status,
-plugins and engines, replication status, schema structure (`mariadb-dump --no-data`),
-configuration files, dataset and per-schema sizes, largest tables, tables without
-primary keys, row formats, auto-increment usage, partitions, account grants,
-duplicate indexes, and operating-system details.
+**Snapshot** — version and variables, global status, InnoDB status, engines and
+plugins, replication status, schema structure (`mariadb-dump --no-data`),
+configuration files, sizes by database and table, tables missing primary or
+secondary indexes, auto-increment headroom, MariaDB feature usage, accounts and
+grants, and operating-system details.
 
-**Metrics, sampled over the window:** global status (1s), InnoDB metrics (1s),
-InnoDB status (60s), processlist (60s), plus `vmstat`, `mpstat`, `iostat`, and
+**Sampled over the window** — global status and InnoDB metrics every second, InnoDB
+status and processlist every minute, plus `vmstat`, `mpstat`, `iostat` and
 `/proc/diskstats` on Linux.
 
-The environment collector writes plain text files, one per query or command. The
-metrics collector writes gzipped streams with `#TS` timestamp markers.
+Output is plain text, one file per query, and gzipped streams with `#TS` timestamp
+markers. Readable without this tool.
 
 ## Known gaps
 
-- **Only metrics are reported.** The environment collection has no report generator
-  yet, so the schema, configuration, and security data is collected but not
-  rendered.
-- **No findings.** The report draws charts; it doesn't tell you what is wrong.
-- **No MariaDB feature inventory** — what the server could be using and isn't.
-- **macOS** — the operating-system collectors are Linux-only, so `vmstat`, `mpstat`,
-  and similar produce nothing when run on a Mac. MariaDB collection works fine.
+- **No prioritised advice.** The report states what is true and ranks security
+  findings by severity, but it does not tell you what to do first. That is layer 3.
+- **macOS** — the operating-system collectors are Linux-only, so `vmstat`, `mpstat`
+  and similar produce nothing on a Mac. MariaDB collection is unaffected.
 
 ## Credits
 

@@ -182,4 +182,40 @@ var analysisQueries = []analysisQuery{
 	{"accounts_from_any_host", "SELECT user, host FROM mysql.user WHERE host='%' OR host=''"},
 	{"pfs_hosts_blocked", "SELECT IP, HOST, COUNT_HOST_BLOCKED_ERRORS FROM performance_schema.host_cache WHERE COUNT_HOST_BLOCKED_ERRORS > 0"},
 	{"pfs_tmp_to_disk", "SELECT schema_name, SUBSTR(digest_text,1,120) statement, count_star, sum_created_tmp_disk_tables, sum_created_tmp_tables FROM performance_schema.events_statements_summary_by_digest WHERE sum_created_tmp_disk_tables > 0 OR sum_created_tmp_tables > 0 ORDER BY sum_created_tmp_disk_tables DESC LIMIT 20"},
+
+	// Object inventory. Counts of things the schema dump contains only as DDL
+	// text, plus schemas that hold no tables and so never appear in a size query.
+	{"object_counts", "SELECT 'schemas' AS object, COUNT(*) AS count FROM information_schema.schemata WHERE schema_name NOT IN ('mysql','information_schema','performance_schema','sys') UNION ALL SELECT 'base_tables', COUNT(*) FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') UNION ALL SELECT 'views', COUNT(*) FROM information_schema.views WHERE table_schema NOT IN ('mysql','information_schema','performance_schema','sys') UNION ALL SELECT 'routines', COUNT(*) FROM information_schema.routines WHERE routine_schema NOT IN ('mysql','sys') UNION ALL SELECT 'triggers', COUNT(*) FROM information_schema.triggers WHERE trigger_schema NOT IN ('mysql','sys') UNION ALL SELECT 'events', COUNT(*) FROM information_schema.events WHERE event_schema NOT IN ('mysql','sys') UNION ALL SELECT 'sequences', COUNT(*) FROM information_schema.sequences UNION ALL SELECT 'user_accounts', COUNT(*) FROM mysql.user UNION ALL SELECT 'estimated_rows', COALESCE(SUM(table_rows),0) FROM information_schema.tables WHERE table_schema NOT IN ('mysql','information_schema','performance_schema','sys')"},
+	{"schemas_all", "SELECT s.schema_name, s.default_character_set_name, s.default_collation_name, COUNT(t.table_name) AS tables FROM information_schema.schemata s LEFT JOIN information_schema.tables t ON t.table_schema=s.schema_name AND t.table_type='BASE TABLE' WHERE s.schema_name NOT IN ('mysql','information_schema','performance_schema','sys') GROUP BY s.schema_name, s.default_character_set_name, s.default_collation_name ORDER BY s.schema_name"},
+
+	// MariaDB feature adoption. Returns only what is in use; the report derives
+	// "available but not in use" by subtracting from the known feature list.
+	// JSON columns are stored as LONGTEXT with a json_valid() CHECK constraint,
+	// so they cannot be found through information_schema.columns.data_type.
+	{"mariadb_features_in_use", "SELECT 'VECTOR columns' AS feature, CONCAT(table_schema,'.',table_name,'.',column_name) AS location FROM information_schema.columns WHERE data_type='vector' " +
+		"UNION ALL SELECT 'System-versioned tables', CONCAT(table_schema,'.',table_name) FROM information_schema.tables WHERE table_type='SYSTEM VERSIONED' " +
+		"UNION ALL SELECT 'Sequences', CONCAT(sequence_schema,'.',sequence_name) FROM information_schema.sequences " +
+		"UNION ALL SELECT 'INET4/INET6/UUID columns', CONCAT(table_schema,'.',table_name,'.',column_name) FROM information_schema.columns WHERE data_type IN ('inet4','inet6','uuid') AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'JSON columns', CONCAT(constraint_schema,'.',table_name,'.',constraint_name) FROM information_schema.check_constraints WHERE check_clause LIKE '%json_valid%' AND constraint_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'CHECK constraints', CONCAT(constraint_schema,'.',table_name,'.',constraint_name) FROM information_schema.check_constraints WHERE check_clause NOT LIKE '%json_valid%' AND constraint_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Generated columns', CONCAT(table_schema,'.',table_name,'.',column_name) FROM information_schema.columns WHERE is_generated<>'NEVER' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Invisible columns', CONCAT(table_schema,'.',table_name,'.',column_name) FROM information_schema.columns WHERE extra LIKE '%INVISIBLE%' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Full-text indexes', CONCAT(table_schema,'.',table_name,'.',index_name) FROM information_schema.statistics WHERE index_type='FULLTEXT' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Spatial indexes', CONCAT(table_schema,'.',table_name,'.',index_name) FROM information_schema.statistics WHERE index_type='SPATIAL' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Vector indexes', CONCAT(table_schema,'.',table_name,'.',index_name) FROM information_schema.statistics WHERE index_type='VECTOR' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Triggers', CONCAT(trigger_schema,'.',trigger_name) FROM information_schema.triggers WHERE trigger_schema NOT IN ('mysql','sys') " +
+		"UNION ALL SELECT 'Views', CONCAT(table_schema,'.',table_name) FROM information_schema.views WHERE table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Stored routines', CONCAT(routine_schema,'.',routine_name) FROM information_schema.routines WHERE routine_schema NOT IN ('mysql','sys') " +
+		"UNION ALL SELECT 'Events', CONCAT(event_schema,'.',event_name) FROM information_schema.events WHERE event_schema NOT IN ('mysql','sys') " +
+		"UNION ALL SELECT DISTINCT 'Partitioned tables', CONCAT(table_schema,'.',table_name) FROM information_schema.partitions WHERE partition_name IS NOT NULL AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Page compression', CONCAT(table_schema,'.',table_name) FROM information_schema.tables WHERE create_options LIKE '%PAGE_COMPRESSED%' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys') " +
+		"UNION ALL SELECT 'Non-InnoDB engines', CONCAT(table_schema,'.',table_name,' (',engine,')') FROM information_schema.tables WHERE engine NOT IN ('InnoDB') AND engine IS NOT NULL AND table_type='BASE TABLE' AND table_schema NOT IN ('mysql','information_schema','performance_schema','sys')"},
+
+	// Tables large enough that a missing secondary index means full scans.
+	{"tables_without_secondary_index", "SELECT t.table_schema, t.table_name, t.table_rows, ROUND((t.data_length+t.index_length)/1024/1024,1) AS size_mb FROM information_schema.tables t WHERE t.table_type='BASE TABLE' AND t.table_schema NOT IN ('mysql','information_schema','performance_schema','sys') AND t.table_rows > 10000 AND NOT EXISTS (SELECT 1 FROM information_schema.statistics s WHERE s.table_schema=t.table_schema AND s.table_name=t.table_name AND s.index_name<>'PRIMARY') ORDER BY t.table_rows DESC"},
+
+	// Security. mysql.user is a view over global_priv on MariaDB 10.4+.
+	{"security_accounts", "SELECT user, host, plugin, password_expired, is_role FROM mysql.user ORDER BY user, host"},
+	{"security_admin_grants", "SELECT user, host, CONCAT_WS(',', IF(Super_priv='Y','SUPER',NULL), IF(File_priv='Y','FILE',NULL), IF(Process_priv='Y','PROCESS',NULL), IF(Shutdown_priv='Y','SHUTDOWN',NULL), IF(Reload_priv='Y','RELOAD',NULL), IF(Create_user_priv='Y','CREATE USER',NULL), IF(Grant_priv='Y','GRANT OPTION',NULL)) AS admin_privileges FROM mysql.user WHERE user<>'root' AND is_role='N' AND (Super_priv='Y' OR File_priv='Y' OR Process_priv='Y' OR Shutdown_priv='Y' OR Reload_priv='Y' OR Create_user_priv='Y' OR Grant_priv='Y')"},
+	{"security_shared_passwords", "SELECT GROUP_CONCAT(CONCAT(user,'@',host)) AS accounts, COUNT(*) AS sharing FROM mysql.user WHERE authentication_string<>'' AND is_role='N' GROUP BY authentication_string HAVING COUNT(*) > 1"},
 }
