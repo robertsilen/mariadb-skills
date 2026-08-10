@@ -18,7 +18,7 @@ There are two kinds at **[github.com/mariadb/skills](https://github.com/mariadb/
 
 ## Process skills
 
-### [vibe-dba](https://github.com/MariaDB/skills/blob/main/vibe-dba/README.md)
+### [vibe-dba](blob/main/vibe-dba/README.md)
 
 Audit a running MariaDB server. A dependency-free Go collector gathers an environment snapshot plus metrics sampled over a window — on the database server, with no AI involved. A Python script turns that into an HTML report: nine sections, charts on real clock time, security findings by severity, and an inventory of which MariaDB features are and are not in use. The agent then reads the report and adds correlation and prioritisation on top, marked so you can see which parts are measured and which are judgement.
 
