@@ -1598,6 +1598,7 @@ RAW_CONFIG_KEYS = [
     "max_connections", "thread_cache_size", "table_open_cache", "open_files_limit",
     "tmp_table_size", "max_heap_table_size", "sort_buffer_size", "join_buffer_size",
     "read_buffer_size", "read_rnd_buffer_size", "skip_name_resolve", "local_infile",
+    "bind_address", "skip_networking",
     "require_secure_transport", "performance_schema", "slow_query_log",
     "long_query_time", "log_queries_not_using_indexes", "character_set_server",
     "collation_server", "sql_mode",
@@ -1944,21 +1945,46 @@ def render_schema(env: Env) -> str:
     )
 
 
+def network_exposure(env: Env) -> tuple[bool, str]:
+    """Whether the server accepts TCP connections, and from where.
+
+    This is not a finding on its own — a production database is meant to be
+    reachable. It is a severity modifier: a weak account on a loopback-only
+    server is a bad habit, the same account on a server listening on every
+    interface is an open door.
+    """
+    if env.var("skip_networking", "OFF").upper() in ("ON", "1"):
+        return False, "networking disabled — socket connections only"
+    bind = env.var("bind_address", "").strip()
+    if bind in ("", "*", "0.0.0.0", "::"):
+        return True, "listening on all interfaces"
+    if bind in ("127.0.0.1", "localhost", "::1"):
+        return False, f"listening on {bind} only — not reachable from the network"
+    return True, f"listening on {bind}"
+
+
 def security_findings(env: Env) -> list[tuple[str, str]]:
     """Severity-ranked security findings derived from the collected data."""
     findings: list[tuple[str, str]] = []
+
+    exposed, exposure_text = network_exposure(env)
+    reach = (f" The server is {html.escape(exposure_text)}, so this is reachable beyond this machine."
+             if exposed else
+             f" The server is {html.escape(exposure_text)}, which limits the exposure.")
 
     anon = [r for r in env.table("anonymous_accounts") if r.get("User", r.get("user", "")) == ""]
     if anon:
         names = ", ".join(f"''@'{r.get('Host', r.get('host',''))}'" for r in anon)
         findings.append(("CRITICAL",
                          f"Anonymous accounts exist ({html.escape(names)}) — anyone matching the host "
-                         f"pattern can connect without credentials. Remove with {code('DROP USER ' + chr(39) + chr(39) + '@' + chr(39) + 'localhost' + chr(39) + ';')}"))
+                         f"pattern can connect without credentials.{reach} Remove with "
+                         f"{code('DROP USER ' + chr(39) + chr(39) + '@' + chr(39) + 'localhost' + chr(39) + ';')}"))
 
     remote_root = env.table("non_local_root_accounts")
     if remote_root:
         names = ", ".join(f"root@'{r.get('host', r.get('Host',''))}'" for r in remote_root)
-        findings.append(("HIGH", f"root is reachable from a non-local host ({html.escape(names)})."))
+        findings.append(("CRITICAL" if exposed else "HIGH",
+                         f"root is defined for a non-local host ({html.escape(names)}).{reach}"))
 
     for r in env.table("security_shared_passwords"):
         findings.append(("MEDIUM",
@@ -1986,6 +2012,18 @@ def security_findings(env: Env) -> list[tuple[str, str]]:
 
 def render_security(env: Env) -> str:
     findings = security_findings(env)
+    exposed, exposure_text = network_exposure(env)
+    network = (
+        '<p class="lead"><strong>Network reach:</strong> '
+        + html.escape(exposure_text[0].upper() + exposure_text[1:])
+        + f' ({code("bind_address")} '
+        + (f'= {html.escape(env.var("bind_address"))}' if env.var("bind_address") else "unset")
+        + f', {code("skip_networking")} = {html.escape(env.var("skip_networking", "?"))}). '
+        + ("Account weaknesses below are reachable from other machines."
+           if exposed else
+           "Account weaknesses below are limited to this machine.")
+        + "</p>"
+    )
     rows = [[str(i + 1), f'<span class="sev sev-{sev.lower()}">{sev}</span>', text]
             for i, (sev, text) in enumerate(findings)]
     accounts = [[code(f"{r.get('User', r.get('user',''))}@{r.get('Host', r.get('host',''))}"),
@@ -1993,7 +2031,8 @@ def render_security(env: Env) -> str:
                  html.escape(r.get("is_role", "")), html.escape(r.get("password_expired", ""))]
                 for r in env.table("security_accounts")]
     return (
-        table_html(["#", "Severity", "Finding"], rows, "No security findings.")
+        network
+        + table_html(["#", "Severity", "Finding"], rows, "No security findings.")
         + "<h3>Accounts</h3>"
         + table_html(["Account", "Auth plugin", "Is role", "Password expired"], accounts)
     )
