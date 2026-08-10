@@ -1,6 +1,6 @@
 # MariaDB Agent Skills
 
-Short **SKILL.md** briefings for AI coding agents — so they get right what they often get wrong about MariaDB (MySQL compatibility, vectors, replication, Oracle migration, and more). Skills install on the **AI agent**, not on your MariaDB server.
+Skills for AI coding agents — so they get right what they often get wrong about MariaDB (MySQL compatibility, vectors, replication, Oracle migration, and more), and so they can audit a running server. Skills install on the **AI agent**, not on your MariaDB server.
 
 ## What is a skill?
 
@@ -10,9 +10,21 @@ Skills work with Claude Code, GitHub Copilot, Cursor, OpenAI Codex, and 20+ othe
 
 ## Skills for MariaDB
 
-We have created an initial set of eight skills at **[github.com/mariadb/skills](https://github.com/mariadb/skills)** — each for a different situation where agents need MariaDB-specific guidance. Install and usage instructions follow below.
+There are two kinds at **[github.com/mariadb/skills](https://github.com/mariadb/skills)**. Install and usage instructions follow below.
 
-Skills use wrong/right pairs, version annotations, and links to official documentation so agents can tailor advice to the MariaDB version you run.
+**Corrective skills** are briefings. The agent reads one when your question matches its topic, and applies the guidance for that session. They use wrong/right pairs, version annotations, and links to official documentation so agents can tailor advice to the MariaDB version you run. They never touch a database.
+
+**Process skills** do work. They run a defined procedure — collecting data, producing an artefact — and involve tools beyond the SKILL.md file itself.
+
+## Process skills
+
+### [vibe-dba](https://github.com/MariaDB/skills/blob/main/vibe-dba/README.md)
+
+Audit a running MariaDB server. A dependency-free Go collector gathers an environment snapshot plus metrics sampled over a window — on the database server, with no AI involved. A Python script turns that into an HTML report: nine sections, charts on real clock time, security findings by severity, and an inventory of which MariaDB features are and are not in use. The agent then reads the report and adds correlation and prioritisation on top, marked so you can see which parts are measured and which are judgement.
+
+Collection is read-only, and the report is worth reading on its own without any AI involvement.
+
+## Corrective skills
 
 ### [mysql-to-mariadb](https://github.com/MariaDB/skills/blob/main/mysql-to-mariadb/SKILL.md)
 
@@ -77,6 +89,13 @@ curl -o ~/.claude/skills/<skill-name>/SKILL.md \
 - Claude Code and Claude Desktop: `~/.claude/skills/<skill-name>/SKILL.md`
 - OpenAI Codex: `~/.agents/skills/<skill-name>/SKILL.md`
 
+This works for the corrective skills, which are a single file. **`vibe-dba` also ships a collector and a report generator**, so it needs the whole directory rather than one file — clone the repository and link it into place:
+
+```bash
+git clone https://github.com/mariadb/skills.git
+ln -s "$(pwd)/skills/vibe-dba" ~/.claude/skills/vibe-dba
+```
+
 ### Updating installed skills
 
 MariaDB skills may be updated over time. If you installed with `npx skills`, refresh your local copies periodically:
@@ -91,6 +110,8 @@ Run `check` first to see what's outdated; `update` pulls the latest from this re
 ## Using MariaDB skills
 
 Once installed, skills activate automatically. When your question matches a skill's topic, the agent reads it and applies the guidance for that session. No manual activation is needed.
+
+For the corrective skills that means better answers, with no visible step. For `vibe-dba` it means the agent starts a procedure: it will ask a couple of questions, run the collector against your server, and hand you a report. Ask it something like *"check the health of my MariaDB"* — see the [vibe-dba README](vibe-dba/README.md) for what it collects and how.
 
 ## Contributions and Improvements
 
