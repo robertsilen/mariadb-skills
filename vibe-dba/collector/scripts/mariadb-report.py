@@ -1393,6 +1393,7 @@ ENV_KV_FILES = {
 
 # Files worth keeping as raw text.
 ENV_TEXT_FILES = (
+    "mariadb_vector_indexes",
     "mariadb_version",
     "datadir",
     "uname",
@@ -2013,10 +2014,28 @@ def render_features(env: Env) -> str:
     unused_rows = [[html.escape(name), html.escape(version), html.escape(note)]
                    for name, version, note in ADOPTABLE_FEATURES if name not in in_use]
 
+    # Vector index options are worth showing verbatim: the per-index DISTANCE
+    # appears nowhere in information_schema, and an index that omits it inherits
+    # mhnsw_default_distance. Two indexes ranking by different metrics is a silent
+    # correctness problem, so put the definitions where they can be compared.
+    vectors = env.text("mariadb_vector_indexes")
+    vector_html = ""
+    if vectors:
+        default_distance = env.var("mhnsw_default_distance", "the server default")
+        vector_html = (
+            "<h3>Vector index definitions</h3>"
+            '<p class="lead">An index that does not name a <code>DISTANCE</code> inherits '
+            f"<code>mhnsw_default_distance</code>, currently <strong>{html.escape(default_distance)}</strong>. "
+            "Indexes ranking by different metrics is a correctness problem that produces "
+            "subtly wrong results rather than an error.</p>"
+            f"<pre>{html.escape(vectors)}</pre>"
+        )
+
     return (
         "<h3>In use</h3>"
         + table_html(["Feature", "Count", "Where"], used_rows,
                      "No MariaDB-specific features were detected.")
+        + vector_html
         + "<h3>Available but not in use</h3>"
         + '<p class="lead">Capabilities this server supports that nothing currently uses. Not every one '
           "is worth adopting — this is an inventory, not a recommendation.</p>"
