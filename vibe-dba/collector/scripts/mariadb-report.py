@@ -1600,9 +1600,14 @@ RAW_CONFIG_KEYS = [
     "require_secure_transport", "performance_schema", "slow_query_log",
     "long_query_time", "log_queries_not_using_indexes", "character_set_server",
     "collation_server", "sql_mode",
+    # Vector search (11.7+). Defaults matter: an index that does not name a
+    # distance inherits mhnsw_default_distance, which is rarely what is wanted.
+    "mhnsw_default_distance", "mhnsw_max_cache_size", "mhnsw_default_m",
+    "mhnsw_ef_search",
 ]
 
 BYTE_VARS = {
+    "mhnsw_max_cache_size",
     "innodb_buffer_pool_size", "innodb_log_file_size", "innodb_log_buffer_size",
     "tmp_table_size", "max_heap_table_size", "sort_buffer_size", "join_buffer_size",
     "read_buffer_size", "read_rnd_buffer_size",

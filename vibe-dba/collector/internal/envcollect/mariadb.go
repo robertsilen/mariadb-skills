@@ -1,6 +1,7 @@
 package envcollect
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -22,6 +23,11 @@ func init() {
 		ID:        "120-mariadb-analysis-queries",
 		IfEnabled: func(ctx *collector.Context) bool { return ctx.IncludeDB },
 		Run:       collectMariaDBAnalysisQueries,
+	})
+	Register(collector.FuncCollector{
+		ID:        "125-mariadb-vector-indexes",
+		IfEnabled: func(ctx *collector.Context) bool { return ctx.IncludeDB },
+		Run:       collectVectorIndexes,
 	})
 	Register(collector.FuncCollector{
 		ID:        "130-mariadb-config-files",
@@ -95,6 +101,42 @@ func collectMariaDBAnalysisQueries(ctx *collector.Context) error {
 		_ = ctx.WriteFile(q.Output, []byte(content))
 	}
 	return nil
+}
+
+// Vector index options (11.7+) are not exposed through information_schema: the
+// per-index DISTANCE appears only in SHOW CREATE TABLE. An index that does not
+// name one silently inherits mhnsw_default_distance, so two indexes in the same
+// server can rank by different metrics — which fails as subtly wrong results
+// rather than as an error. Capture the definitions on their own so the report
+// does not have to dig them out of the schema dump.
+func collectVectorIndexes(ctx *collector.Context) error {
+	out, err := ctx.MariaDBRaw("SELECT DISTINCT CONCAT(table_schema,'.',table_name) FROM information_schema.statistics WHERE index_type='VECTOR'", "-N", "-B")
+	if err != nil {
+		return nil
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(string(out), "\n") {
+		table := strings.TrimSpace(line)
+		if table == "" {
+			continue
+		}
+		def, err := ctx.MariaDBRaw("SHOW CREATE TABLE "+table+"\\G", "-B")
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "##### %s #####\n", table)
+		for _, defLine := range strings.Split(string(def), "\n") {
+			trimmed := strings.TrimSpace(defLine)
+			if strings.Contains(trimmed, "vector(") || strings.Contains(strings.ToUpper(trimmed), "VECTOR KEY") {
+				fmt.Fprintf(&b, "%s\n", trimmed)
+			}
+		}
+		b.WriteString("\n")
+	}
+	if b.Len() == 0 {
+		return nil
+	}
+	return ctx.WriteFile("mariadb_vector_indexes", []byte(b.String()))
 }
 
 func collectMariaDBConfigFiles(ctx *collector.Context) error {

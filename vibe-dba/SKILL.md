@@ -30,7 +30,7 @@ add correlation, prioritisation and judgement on top of it.
 | Opening the collected files to analyse them | **Read the report, not the collection.** `global_status.out.gz` alone is ~23,000 lines of repeated samples. Generate the report and read that |
 | Writing findings only into the chat reply | **Findings go in `annotations.json`**, then the report is regenerated. The deliverable is a file the user can print, forward and compare next month |
 | Editing the report HTML to add commentary | Never touch generated HTML. Annotations are a separate input merged at render time |
-| Concluding "the database is healthy" from a short or idle collection window | The report says when a window is too short or quiet. **Never state more confidence than the report supports.** Where you and the report disagree, the report is right |
+| Concluding "the database is healthy" from a short or idle collection window | The report says when a window is too short or quiet. **Never state more confidence than the report supports.** Its measurements are authoritative — never contradict a number |
 | Offering a general health assessment when the user cannot run the collector | **No data, no audit.** Explain why the data is needed and help them get it — see [If the collector cannot be run](#if-the-collector-cannot-be-run) |
 | Collecting immediately because it is convenient now | If the problem happens Monday at 17:00, **collect Monday at 17:00.** Timing the window is the highest-value decision in this process |
 | Answering "does MariaDB support X?" with this skill | Wrong skill. Use `mariadb-features`, `mariadb-query-optimization`, and the others |
@@ -204,6 +204,11 @@ You contribute four things. Everything else in the report is already measured.
   commands?") beats a confident guess.
 - **State what you could not see.** Performance Schema off, no OS data, short
   window. The report already flags these; do not quietly work around them.
+- **You may disagree with the report's *judgement*, but never with its *numbers*.**
+  Severity labels and generic checks are heuristics and can misfire — a "test
+  database exists" finding is wrong if that database is real work. When one does,
+  say so in an annotation on that section, with the reason. Silently leaving a
+  finding you believe is wrong is worse than arguing with it.
 - **Write for a developer, not a DBA.** The audience runs the application.
 - **Check the variable exists in Appendix A** before recommending a change to it.
   Much published advice names variables MariaDB has removed — `innodb_buffer_pool_instances`
