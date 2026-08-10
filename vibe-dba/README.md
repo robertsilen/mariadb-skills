@@ -12,11 +12,46 @@ gets wrong about MariaDB. Vibe DBA is different: it runs against a real server.
 |---|---|---|
 | **1. Collect** | Two Go binaries: a snapshot of the server, and metrics sampled over time | working |
 | **2. Report** | A Python script turns the collected data into an HTML report | working |
-| **3. Analyse** | A `SKILL.md` for an AI agent to read the report and advise | not started |
+| **3. Analyse** | `SKILL.md` — an AI agent reads the report and adds analysis | first version |
 
 **No AI is involved in layers 1 and 2.** The collector runs on the database server;
 the collected files are moved to wherever you want to analyse them. You can run both
 and read the result yourself.
+
+## Using it with an AI agent
+
+The skill is `SKILL.md` in this directory. It drives the whole process — asks what
+you need, picks a collection window, runs the collectors, generates the report, adds
+its analysis, and hands you the file.
+
+Unlike the other skills in this repository, **this one needs the collector next to
+it**, so install the whole directory rather than the single file. A symlink is the
+easiest way, and means edits take effect immediately:
+
+```sh
+ln -s "$(pwd)/vibe-dba" ~/.claude/skills/vibe-dba     # run from the repository root
+```
+
+Other agents use different locations — OpenAI Codex reads `~/.agents/skills/`.
+
+Then start the agent from anywhere and ask for what you want:
+
+```
+claude "check my mariadb database"
+claude "my site is slow every Monday at 5pm, I think it is the database"
+claude "dba"
+```
+
+Expect it to ask a couple of questions before collecting — when the database is
+busy, whether something specific is wrong. That is deliberate: **the collection
+window decides how useful the report is**, and a badly timed run cannot be salvaged
+afterwards. If your problem happens on Monday afternoon, the skill should tell you
+to collect on Monday afternoon, even if that means waiting.
+
+What it will not do: query your database directly, guess from the schema, or produce
+an assessment without collected data. Without a collection there is no audit.
+
+To run the tools yourself with no agent involved, carry on below.
 
 ## Quick start
 
@@ -33,7 +68,8 @@ go build ./cmd/mariadb-envcollect ; go build ./cmd/mariadb-metrics
 python3 scripts/mariadb-report.py /tmp/collect -o report.html
 ```
 
-The metrics run blocks for its full duration. The report script takes the parent
+The metrics run blocks for its full duration. Add `--text` to also get a plain-text
+version alongside the HTML, for reading in a terminal. The report script takes the parent
 directory and finds both collections underneath it.
 
 ## Collecting
@@ -119,7 +155,7 @@ and system files. Nothing is written and no setting is changed.
 plugins, replication status, schema structure (`mariadb-dump --no-data`),
 configuration files, sizes by database and table, tables missing primary or
 secondary indexes, auto-increment headroom, MariaDB feature usage, accounts and
-grants, and operating-system details.
+grants, and hardware identity (CPU, cores, RAM, disk — on Linux and macOS).
 
 **Sampled over the window** — global status and InnoDB metrics every second, InnoDB
 status and processlist every minute, plus `vmstat`, `mpstat`, `iostat` and
@@ -130,10 +166,11 @@ markers. Readable without this tool.
 
 ## Known gaps
 
-- **No prioritised advice.** The report states what is true and ranks security
-  findings by severity, but it does not tell you what to do first. That is layer 3.
-- **macOS** — the operating-system collectors are Linux-only, so `vmstat`, `mpstat`
-  and similar produce nothing on a Mac. MariaDB collection is unaffected.
+- **The analysis is a first version.** The skill drives the process reliably; the
+  depth of its judgement is the next thing to work on.
+- **macOS** — hardware identity (CPU, cores, RAM, disk) is collected, but the
+  sampled OS metrics (`vmstat`, `mpstat`, `iostat`, `/proc/diskstats`) are Linux-only
+  and produce nothing on a Mac. MariaDB collection is unaffected.
 
 ## Credits
 

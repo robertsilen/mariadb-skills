@@ -109,6 +109,9 @@ def main() -> int:
     parser.add_argument("-o", "--out", help="output HTML file")
     parser.add_argument("--max-points", type=int, default=900, help="max points per series")
     parser.add_argument(
+        "--text", action="store_true",
+        help="also write a plain-text version of the report next to the HTML")
+    parser.add_argument(
         "--annotations",
         help="JSON file of AI or human annotations to merge into the report")
     args = parser.parse_args()
@@ -148,6 +151,11 @@ def main() -> int:
             render_html(inputs[0], env_dir, metrics_dir, env, window, charts, annotations),
             encoding="utf-8")
         print(f"Wrote {output}")
+        if args.text:
+            text_path = output.with_suffix(".txt")
+            text_path.write_text(html_to_text(output.read_text(encoding="utf-8")),
+                                 encoding="utf-8")
+            print(f"Wrote {text_path}")
         if env_dir is None:
             print("No environment data found; the static sections were skipped.", file=sys.stderr)
         if metrics_dir is None:
@@ -1352,6 +1360,7 @@ class Env:
     root: Path | None = None
     variables: dict[str, str] = field(default_factory=dict)
     status: dict[str, str] = field(default_factory=dict)
+    hardware: dict[str, str] = field(default_factory=dict)
     tables: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     files: dict[str, str] = field(default_factory=dict)
 
@@ -1376,7 +1385,11 @@ class Env:
 
 
 # Files that hold a bare key/value listing rather than a query result.
-ENV_KV_FILES = {"mariadb_variables": "variables", "mariadb_global_status": "status"}
+ENV_KV_FILES = {
+    "mariadb_variables": "variables",
+    "mariadb_global_status": "status",
+    "hardware": "hardware",
+}
 
 # Files worth keeping as raw text.
 ENV_TEXT_FILES = (
@@ -1414,7 +1427,8 @@ def load_env(root: Path | None) -> Env:
             continue
 
         if name in ENV_KV_FILES:
-            target = env.variables if ENV_KV_FILES[name] == "variables" else env.status
+            target = {"variables": env.variables, "status": env.status,
+                      "hardware": env.hardware}[ENV_KV_FILES[name]]
             for line in raw.splitlines():
                 parts = line.split("\t")
                 if len(parts) >= 2:
@@ -1596,7 +1610,13 @@ BYTE_VARS = {
 
 
 def total_ram_bytes(env: Env) -> float:
-    """Best-effort physical memory, from the collector's system summary."""
+    """Physical memory, from the collector's normalised hardware facts."""
+    raw = env.hardware.get("memory_bytes", "")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
     for key in ("native-system-summary", "free", "lscpu"):
         text = env.text(key)
         if not text:
@@ -1675,11 +1695,31 @@ def render_identity(env: Env) -> str:
         ["Uptime", html.escape(human_uptime(env.num("Uptime")))],
         ["Server character set", html.escape(f"{env.var('character_set_server','?')} / {env.var('collation_server','?')}")],
     ]
-    uname = env.text("uname")
-    if uname and "ERROR" not in uname:
-        rows.append(["Operating system", html.escape(uname.splitlines()[0][:180])])
+    hw = env.hardware
+    os_label = " ".join(x for x in (hw.get("os_name", ""), hw.get("os_version", "")) if x)
+    if not os_label:
+        uname = env.text("uname")
+        if uname and "ERROR" not in uname:
+            os_label = uname.splitlines()[0][:180]
+    if os_label:
+        rows.append(["Operating system", html.escape(os_label)])
+    if hw.get("kernel"):
+        rows.append(["Kernel", html.escape(hw["kernel"])])
+    if hw.get("cpu_model") or hw.get("cpu_cores"):
+        cpu = hw.get("cpu_model", "unknown")
+        if hw.get("cpu_cores"):
+            cpu += f" ({hw['cpu_cores']} cores)"
+        rows.append(["CPU", html.escape(cpu)])
     if ram:
         rows.append(["RAM", html.escape(human_bytes(ram))])
+    if hw.get("disk_root_bytes"):
+        try:
+            disk = human_bytes(float(hw["disk_root_bytes"]))
+        except ValueError:
+            disk = hw["disk_root_bytes"]
+        if hw.get("disk_root_ssd") == "yes":
+            disk += " (solid state)"
+        rows.append(["Root filesystem", html.escape(disk)])
     return table_html(["Item", "Value"], rows)
 
 
@@ -2228,6 +2268,30 @@ def render_chart(chart: Chart, idx: int) -> str:
   <div class="legend">{"".join(legend)}</div>
 </article>
 """
+
+
+def html_to_text(document: str) -> str:
+    """Plain-text rendering of the report, for reading in a terminal or by an agent.
+
+    The HTML is the deliverable; this is a convenience view so nobody has to write
+    their own parser to read the numbers.
+    """
+    text = re.sub(r"<script.*?</script>", "", document, flags=re.S)
+    text = re.sub(r"<style.*?</style>", "", text, flags=re.S)
+    text = re.sub(r"<svg.*?</svg>", "[chart]", text, flags=re.S)
+    text = re.sub(r"<h1[^>]*>", "\n\n# ", text)
+    text = re.sub(r"<h2[^>]*>", "\n\n## ", text)
+    text = re.sub(r"<h3[^>]*>", "\n\n### ", text)
+    text = re.sub(r"<h4[^>]*>", "\n\n#### ", text)
+    text = re.sub(r'<div class="prov prov-(\w+)"[^>]*>', r"\n\n[\1 annotation]\n", text)
+    text = re.sub(r"<(p|div|li|tr|br)[^>]*>", "\n", text)
+    text = re.sub(r"</t[dh]>", " | ", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" *\| *\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip() + "\n"
 
 
 def format_number(value: float) -> str:
