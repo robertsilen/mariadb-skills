@@ -106,6 +106,8 @@ func collectHardwareDarwin(ctx *collector.Context, facts map[string]string) {
 }
 
 func collectHardwareLinux(ctx *collector.Context, facts map[string]string) {
+	// x86 reports "model name"; ARM reports none of that, so count "processor"
+	// lines for cores and fall back to lscpu for the model.
 	if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
 		cores := 0
 		for _, line := range strings.Split(string(data), "\n") {
@@ -113,18 +115,34 @@ func collectHardwareLinux(ctx *collector.Context, facts map[string]string) {
 			if !found {
 				continue
 			}
-			switch strings.TrimSpace(name) {
-			case "model name", "Model":
-				if facts["cpu_model"] == "" {
-					facts["cpu_model"] = strings.TrimSpace(value)
-				}
-				cores++
+			key := strings.TrimSpace(name)
+			value = strings.TrimSpace(value)
+			switch key {
 			case "processor":
-				// Counted through model name above; kept for CPUs that omit it.
+				cores++
+			case "model name", "Model", "Hardware", "cpu model":
+				if facts["cpu_model"] == "" && value != "" {
+					facts["cpu_model"] = value
+				}
 			}
 		}
 		if cores > 0 {
 			facts["cpu_cores"] = strconv.Itoa(cores)
+		}
+	}
+
+	if facts["cpu_model"] == "" {
+		if out := trimmedOutput(ctx, "lscpu"); out != "" {
+			for _, line := range strings.Split(out, "\n") {
+				name, value, found := strings.Cut(line, ":")
+				if !found || strings.TrimSpace(name) != "Model name" {
+					continue
+				}
+				if v := strings.TrimSpace(value); v != "" && v != "-" {
+					facts["cpu_model"] = v
+				}
+				break
+			}
 		}
 	}
 

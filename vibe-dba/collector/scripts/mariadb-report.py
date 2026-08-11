@@ -1712,10 +1712,12 @@ def render_identity(env: Env) -> str:
     if hw.get("kernel"):
         rows.append(["Kernel", html.escape(hw["kernel"])])
     if hw.get("cpu_model") or hw.get("cpu_cores"):
-        cpu = hw.get("cpu_model", "unknown")
+        parts = []
+        if hw.get("cpu_model"):
+            parts.append(hw["cpu_model"])
         if hw.get("cpu_cores"):
-            cpu += f" ({hw['cpu_cores']} cores)"
-        rows.append(["CPU", html.escape(cpu)])
+            parts.append(f"{hw['cpu_cores']} cores")
+        rows.append(["CPU", html.escape(" · ".join(parts))])
     if ram:
         rows.append(["RAM", html.escape(human_bytes(ram))])
     if hw.get("disk_root_bytes"):
