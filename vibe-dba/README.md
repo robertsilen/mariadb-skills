@@ -117,31 +117,92 @@ The metrics run blocks for its full duration. The report script takes the parent
 directory and finds both collections underneath it. Add `--text` for a plain-text
 version alongside the HTML.
 
-**On the server, analysed elsewhere** — the realistic case:
+## Collecting from a remote server
+
+The realistic case: the database is on a Linux server, and you want the report on your
+own machine. Nothing is installed on the server and Python is not needed there — only
+the two binaries, which you delete afterwards.
+
+**1. Build for the target.** Both binaries, cross-compiled from wherever you are:
 
 ```sh
-# on the database server
-./mariadb-metrics -out /tmp -duration 10m -package -cleanup
-
-# on your machine
-scp server:/tmp/*_metrics_*.tgz .
-python3 scripts/mariadb-report.py *_metrics_*.tgz -o report.html
+cd collector
+GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-envcollect
+GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-metrics
 ```
 
-`-package` produces a `.tgz`; the report script reads it directly. Cross-compile the
-collector for the target with `GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-metrics`.
+Use `GOARCH=arm64` for Graviton or other ARM servers. They are static, dependency-free
+binaries of about 3.5 MB each.
 
-**No shell access on the server** — a managed instance, for example — collect over the
-network with `-rds`, which skips the operating-system data that only works locally:
+**2. Copy them over.** Anywhere writable — no installation, no root needed to run them:
 
 ```sh
-./mariadb-metrics -rds -duration 10m -mariadb-host db.example.com -mariadb-user collector
+scp mariadb-envcollect mariadb-metrics server:/tmp/
 ```
 
-The collectors shell out to the `mariadb` client, so they pick up your usual
-configuration. Override with `-mariadb-conn`, `-mariadb-defaults-file`, or
-`-mariadb-host` / `-mariadb-user` / `-mariadb-password`; the matching `MARIADB_*`
-environment variables work too. Run `-h` for the full list.
+**3. Collect.** Environment first — it takes seconds — then metrics over your window:
+
+```sh
+ssh server
+cd /tmp
+./mariadb-envcollect -out /tmp/collect/env -package=false -cleanup=false
+./mariadb-metrics    -out /tmp/collect     -duration 10m -package=false -cleanup=false
+tar czf collect.tgz -C /tmp collect
+```
+
+Run both. Metrics alone gives you charts with none of the schema, configuration,
+security or feature sections — which is where most findings come from.
+
+Output is a few MB: plain text files plus gzipped sample streams. The `.tgz` is
+usually well under 1 MB.
+
+**4. Bring it back and report:**
+
+```sh
+scp server:/tmp/collect.tgz .
+python3 scripts/mariadb-report.py collect.tgz -o report.html
+```
+
+**5. Clean up** — `rm /tmp/mariadb-envcollect /tmp/mariadb-metrics` and the collection
+directory. Nothing else was left behind.
+
+### The database user
+
+The collector connects as whoever you tell it to and runs only `SELECT` and `SHOW`. A
+dedicated read-only account is enough:
+
+```sql
+CREATE USER 'collector'@'localhost' IDENTIFIED BY '<password>';
+GRANT SELECT, PROCESS, REPLICATION CLIENT, SHOW VIEW, SHOW DATABASES
+  ON *.* TO 'collector'@'localhost';
+```
+
+`PROCESS` is needed for `SHOW ENGINE INNODB STATUS` and the processlist,
+`REPLICATION CLIENT` for the replication status, `SHOW VIEW` for the schema dump.
+Without them those sections are reported as unavailable rather than failing the run.
+
+The collectors shell out to the `mariadb` client, so with no arguments they use your
+usual configuration. Point them elsewhere with `-mariadb-conn`,
+`-mariadb-defaults-file`, or `-mariadb-host` / `-mariadb-user` / `-mariadb-password`;
+the matching `MARIADB_*` environment variables work too, which keeps passwords out of
+your shell history. Run `-h` for the full list.
+
+### No shell access on the server
+
+A managed instance, for example. Run the collector from your own machine against the
+server over the network, with `-rds` to skip the operating-system data that only works
+locally:
+
+```sh
+./mariadb-envcollect -rds -out /tmp/collect/env -mariadb-host db.example.com -mariadb-user collector
+./mariadb-metrics    -rds -out /tmp/collect -duration 10m -mariadb-host db.example.com -mariadb-user collector
+```
+
+Everything MariaDB-side is still collected; the report states which sections are
+missing and why. Sampling across a network adds a little latency to each sample, which
+the report accounts for — rates are computed from real elapsed time, not an assumed
+interval.
+
 
 ## What is collected
 
