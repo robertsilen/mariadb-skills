@@ -59,7 +59,8 @@ func collectMariaDBPeriodicSQL(ctx *collector.Context) error {
 			Every:    time.Second,
 			FileName: "innodb_metrics.out.gz",
 			Run: func(ctx *collector.Context) ([]byte, error) {
-				return ctx.MariaDBRaw("SELECT name, subsystem, count, status FROM information_schema.INNODB_METRICS WHERE status='enabled'", "-B")
+				// MariaDB exposes ENABLED (0/1); STATUS ('enabled') is the MySQL spelling
+					return ctx.MariaDBRaw("SELECT name, subsystem, count, enabled FROM information_schema.INNODB_METRICS WHERE enabled=1", "-B")
 			},
 		},
 	}

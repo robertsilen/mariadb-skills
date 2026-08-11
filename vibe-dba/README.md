@@ -173,13 +173,17 @@ dedicated read-only account is enough:
 
 ```sql
 CREATE USER 'collector'@'localhost' IDENTIFIED BY '<password>';
-GRANT SELECT, PROCESS, REPLICATION CLIENT, SHOW VIEW, SHOW DATABASES
+GRANT SELECT, PROCESS, REPLICATION CLIENT, SLAVE MONITOR, SHOW VIEW, SHOW DATABASES
   ON *.* TO 'collector'@'localhost';
 ```
 
 `PROCESS` is needed for `SHOW ENGINE INNODB STATUS` and the processlist,
-`REPLICATION CLIENT` for the replication status, `SHOW VIEW` for the schema dump.
-Without them those sections are reported as unavailable rather than failing the run.
+`REPLICATION CLIENT` for `SHOW MASTER STATUS`, `SLAVE MONITOR` (10.5+) for
+`SHOW SLAVE STATUS`, and `SHOW VIEW` for the schema dump. Missing privileges leave
+those sections reported as unavailable rather than failing the run.
+
+Verified: with exactly these grants the collector produces a complete report — schema,
+security, features, InnoDB status and replication all present.
 
 The collectors shell out to the `mariadb` client, so with no arguments they use your
 usual configuration. Point them elsewhere with `-mariadb-conn`,
