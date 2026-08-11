@@ -55,6 +55,13 @@ LOGO_ALT = "MariaDB Foundation"
 REPORT_TITLE = "MariaDB Foundation AI DBA Server Inventory"
 INSTALL_COMMANDS = 'git clone https://github.com/MariaDB/skills.git\ncd skills && claude "dba"'
 
+# Section anchors an annotation may target. Anything else is a typo, and rendering
+# would drop it without a word.
+ANNOTATION_SECTIONS = frozenset({
+    "summary", "identity", "innodb", "connections", "performance",
+    "schema", "security", "features", "replication",
+})
+
 # How a chart's time axis was derived.
 TIME_EXACT = "exact"  # from #TS markers in the stream
 TIME_EVEN = "even"  # spread evenly across the collection window
@@ -153,8 +160,9 @@ def main() -> int:
         print(f"Wrote {output}")
         if args.text:
             text_path = output.with_suffix(".txt")
-            text_path.write_text(html_to_text(output.read_text(encoding="utf-8")),
-                                 encoding="utf-8")
+            text_path.write_text(
+                html_to_text(output.read_text(encoding="utf-8"), charts),
+                encoding="utf-8")
             print(f"Wrote {text_path}")
         if env_dir is None:
             print("No environment data found; the static sections were skipped.", file=sys.stderr)
@@ -900,7 +908,8 @@ def render_html(
                     render_connections(env) + ann("connections")),
             section("5", "Query Performance Indicators",
                     "How the server is being asked to work, and whether it is coping.",
-                    render_query_indicators(env, charts_html, window) + ann("performance")),
+                    render_query_indicators(env, charts_html, window, charts)
+                    + ann("performance")),
             section("6", "Schema Analysis",
                     "The physical shape of the data: what exists, how big it is, and where "
                     "indexes are missing.",
@@ -927,7 +936,8 @@ def render_html(
     else:
         body = section("", "Sampled Metrics",
                        "No environment collection was supplied, so only sampled metrics are shown.",
-                       window_quality_note(window, env) + charts_html)
+                       window_quality_note(window, env)
+                       + window_activity_note(window, env, charts) + charts_html)
         title_line = ""
 
     summary = render_summary(window, charts, env)
@@ -1795,7 +1805,8 @@ def render_connections(env: Env) -> str:
     return table_html(["Setting / metric", "Value", "What it means"], rows)
 
 
-def render_query_indicators(env: Env, charts_html: str, window: Window) -> str:
+def render_query_indicators(env: Env, charts_html: str, window: Window,
+                            charts: list[Chart]) -> str:
     uptime = max(env.num("Uptime"), 1)
     tmp = env.num("Created_tmp_tables")
     tmp_disk = env.num("Created_tmp_disk_tables")
@@ -1854,10 +1865,58 @@ def render_query_indicators(env: Env, charts_html: str, window: Window) -> str:
         "<h3>Global counters</h3>" + caveat
         + table_html(["Metric", "Total", "Rate (lifetime)", "What it means"], counters)
         + "<h3>Sampled metrics</h3>" + window_quality_note(window, env)
+        + window_activity_note(window, env, charts)
         + (charts_html or '<p class="none">No sampled metrics were provided.</p>')
         + "<h3>Slow query log</h3>"
         + table_html(["Setting", "Value", "What it means"], slow_log)
         + "<h3>Statement digests</h3>" + digest_html
+    )
+
+
+def window_activity(charts: list[Chart]) -> dict[str, float] | None:
+    """Mean and peak statement rate during the window, from the sampled Questions series."""
+    for chart in charts:
+        if not chart.title.startswith("MariaDB Query Traffic"):
+            continue
+        for name, values in chart.series.items():
+            if name != "Questions":
+                continue
+            return series_stats(values)
+    return None
+
+
+def window_activity_note(window: Window, env: Env, charts: list[Chart]) -> str:
+    """Judge how busy the window was, so nobody reads an idle server as a healthy one.
+
+    Duration is judged separately in window_quality_note. A ten-minute window that
+    caught no work supports no workload conclusion, however long it ran.
+    """
+    activity = window_activity(charts)
+    if activity is None:
+        return ""
+    mean, peak = activity["mean"], activity["max"]
+    lifetime = ""
+    uptime = env.num("Uptime") if env else 0.0
+    questions = env.num("Questions") if env else 0.0
+    if uptime > 0 and questions > 0:
+        rate = questions / uptime
+        lifetime = (
+            f" The lifetime average is {format_number(rate)}/s, so this window was "
+            f"{'busier than' if mean > rate * 1.5 else 'quieter than' if mean * 1.5 < rate else 'typical of'}"
+            " the server's usual state."
+        )
+    if mean < 1.0:
+        return (
+            f'<p class="caveat"><strong>Quiet window: {format_number(mean)} statements/s on '
+            f"average, peaking at {format_number(peak)}/s.</strong> Almost nothing ran while this "
+            "was collected, so the charts cannot support a workload conclusion and the absence of "
+            "problems here is not evidence that there are none. Re-run during a busy period."
+            f"{lifetime}</p>"
+        )
+    return (
+        f'<p class="caveat"><strong>Active window: {format_number(mean)} statements/s on average, '
+        f"peaking at {format_number(peak)}/s.</strong> There was real work to measure, so the "
+        f"sampled charts below describe genuine behaviour.{lifetime}</p>"
     )
 
 
@@ -2166,7 +2225,21 @@ def load_annotations(path: Path | None) -> list[dict[str, str]]:
         return []
     if isinstance(data, dict):
         data = data.get("annotations", [])
-    return [a for a in data if isinstance(a, dict)]
+    notes = [a for a in data if isinstance(a, dict)]
+    kept = []
+    for note in notes:
+        anchor = note.get("section", "")
+        if anchor in ANNOTATION_SECTIONS:
+            kept.append(note)
+            continue
+        # Silently dropping these is worse than losing them loudly: the analysis
+        # disappears from the report and the exit code still says success.
+        print(
+            f"warning: annotation dropped — unknown section {anchor!r}. "
+            f"Valid sections: {', '.join(sorted(ANNOTATION_SECTIONS))}",
+            file=sys.stderr,
+        )
+    return kept
 
 
 def render_annotations(annotations: list[dict[str, str]], anchor: str) -> str:
@@ -2334,15 +2407,69 @@ def render_chart(chart: Chart, idx: int) -> str:
 """
 
 
-def html_to_text(document: str) -> str:
+def series_stats(values: list[float | None]) -> dict[str, float] | None:
+    """Summarise one series. Returns None if the series holds no numbers."""
+    numbers = [v for v in values if v is not None]
+    if not numbers:
+        return None
+    ordered = sorted(numbers)
+    # Nearest-rank p95, which needs no interpolation and is stable on short series.
+    rank = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    return {
+        "min": ordered[0],
+        "mean": sum(numbers) / len(numbers),
+        "p95": ordered[rank],
+        "max": ordered[-1],
+        "first": numbers[0],
+        "last": numbers[-1],
+        "points": float(len(numbers)),
+    }
+
+
+def chart_text(chart: Chart) -> str:
+    """Per-series statistics for the text report.
+
+    The HTML draws the shape; text readers get the numbers behind it. Without this
+    the text report silently drops every sampled value, which leaves an agent with
+    nothing but lifetime counters — the snapshot this tool exists to avoid.
+    """
+    rows = []
+    for name, values in chart.series.items():
+        stats = series_stats(values)
+        if stats is None:
+            continue
+        rows.append(
+            f"{name} | {format_number(stats['min'])} | {format_number(stats['mean'])} | "
+            f"{format_number(stats['p95'])} | {format_number(stats['max'])} | "
+            f"{format_number(stats['last'])}"
+        )
+    if not rows:
+        return "[chart: no numeric samples]"
+    approx = " (approximate time)" if chart.time_source == TIME_EVEN else ""
+    header = (
+        f"[chart: {chart.title} — {chart.unit}{approx}]\n"
+        "Series | Min | Mean | p95 | Max | Last"
+    )
+    return header + "\n" + "\n".join(rows)
+
+
+def html_to_text(document: str, charts: list[Chart] | None = None) -> str:
     """Plain-text rendering of the report, for reading in a terminal or by an agent.
 
     The HTML is the deliverable; this is a convenience view so nobody has to write
-    their own parser to read the numbers.
+    their own parser to read the numbers. Charts are substituted in render order —
+    render_html emits exactly one <svg> per chart, in the order of `charts`.
     """
     text = re.sub(r"<script.*?</script>", "", document, flags=re.S)
     text = re.sub(r"<style.*?</style>", "", text, flags=re.S)
-    text = re.sub(r"<svg.*?</svg>", "[chart]", text, flags=re.S)
+    pending = list(charts or [])
+
+    def chart_block(_match: re.Match[str]) -> str:
+        if not pending:
+            return "[chart]"
+        return chart_text(pending.pop(0))
+
+    text = re.sub(r"<svg.*?</svg>", chart_block, text, flags=re.S)
     text = re.sub(r"<h1[^>]*>", "\n\n# ", text)
     text = re.sub(r"<h2[^>]*>", "\n\n## ", text)
     text = re.sub(r"<h3[^>]*>", "\n\n### ", text)
