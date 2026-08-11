@@ -509,14 +509,16 @@ def mariadb_status_charts(samples: Samples) -> list[Chart]:
             ["Innodb_buffer_pool_read_requests", "Innodb_buffer_pool_reads"],
         ),
         chart_from_samples(
-            "InnoDB Row Operations",
+            "Row Access (Handler statistics)",
             "/s",
             delta,
             [
-                "Innodb_rows_read",
-                "Innodb_rows_inserted",
-                "Innodb_rows_updated",
-                "Innodb_rows_deleted",
+                "Handler_read_rnd_next",
+                "Handler_read_key",
+                "Handler_read_next",
+                "Handler_write",
+                "Handler_update",
+                "Handler_delete",
             ],
         ),
         chart_from_samples(
@@ -526,8 +528,9 @@ def mariadb_status_charts(samples: Samples) -> list[Chart]:
             [
                 "Innodb_data_reads",
                 "Innodb_data_writes",
-                "Innodb_os_log_fsyncs",
+                "Innodb_data_fsyncs",
                 "Innodb_log_writes",
+                "Innodb_log_write_requests",
             ],
         ),
         chart_from_samples(
@@ -621,34 +624,30 @@ def innodb_metric_charts(samples: Samples) -> list[Chart]:
             "/s",
             delta,
             [
-                "buffer_page_read",
-                "buffer_page_written",
                 "buffer_pool_reads",
                 "buffer_pool_read_requests",
+                "buffer_pool_write_requests",
+                "buffer_pool_wait_free",
             ],
         ),
         chart_from_samples(
-            "InnoDB Metrics: DML",
+            "InnoDB Metrics: Pages",
             "/s",
             delta,
-            ["dml_reads", "dml_inserts", "dml_deletes", "dml_updates"],
+            ["buffer_pages_read", "buffer_pages_written", "buffer_pages_created"],
         ),
         chart_from_samples(
             "InnoDB Metrics: Locks",
             "/s",
             delta,
-            ["lock_deadlocks", "lock_timeouts", "lock_row_lock_waits"],
+            ["lock_deadlocks", "lock_timeouts", "lock_row_lock_waits",
+             "lock_row_lock_current_waits"],
         ),
         chart_from_samples(
             "InnoDB Metrics: Log",
             "/s",
             delta,
-            [
-                "log_lsn_current",
-                "log_lsn_checkpoint_age",
-                "log_write_requests",
-                "log_writes",
-            ],
+            ["log_writes", "log_write_requests", "log_waits", "os_log_bytes_written"],
         ),
     ]
 
