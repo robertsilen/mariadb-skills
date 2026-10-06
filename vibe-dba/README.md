@@ -1,6 +1,6 @@
 # Vibe DBA
 
-*Last updated: 2026-08-10*
+*Last updated: 2026-10-06*
 
 **Audit a running MariaDB server.** Collect data from it, turn that into a report you
 can read, and have an AI agent add analysis on top.
@@ -153,8 +153,12 @@ tar czf collect.tgz -C /tmp collect
 Run both. Metrics alone gives you charts with none of the schema, configuration,
 security or feature sections — which is where most findings come from.
 
-Output is a few MB: plain text files plus gzipped sample streams. The `.tgz` is
-usually well under 1 MB.
+Output is plain text files plus gzipped sample streams. Its size grows with the
+length of the window and with the size and activity of the server: a 3-minute run
+on a small, quiet test server packs to about 0.6 MB, but the per-second samples grow
+with every minute collected. The per-minute processlist and InnoDB status grow with
+the number of connections, and the schema dump grows with the number of tables. It
+has not yet been measured on a large, busy server.
 
 **4. Bring it back and report:**
 
