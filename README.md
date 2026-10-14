@@ -24,6 +24,10 @@ Audit a running MariaDB server. A dependency-free Go collector gathers an enviro
 
 Collection is read-only, and the report is worth reading on its own without any AI involvement.
 
+### [mariadb-taf](mariadb-taf/README.md)
+
+Answer one performance question with numbers you can rerun, using [TAF](https://mariadb.org/projects/taf/), the MariaDB Foundation's open-source Test Automation Framework. Will an upgrade slow you down? Does a my.cnf change help? Where does this host stop scaling? InnoDB or MyRocks? The agent pins down the question, picks a template, changes one variable at a time, estimates the runtime, and compares the repeated runs. TAF installs and drives its own server on a dedicated Linux host; it is not for production servers.
+
 ## Corrective skills
 
 ### [mysql-to-mariadb](https://github.com/MariaDB/skills/blob/main/mysql-to-mariadb/SKILL.md)
@@ -89,11 +93,12 @@ curl -o ~/.claude/skills/<skill-name>/SKILL.md \
 - Claude Code and Claude Desktop: `~/.claude/skills/<skill-name>/SKILL.md`
 - OpenAI Codex: `~/.agents/skills/<skill-name>/SKILL.md`
 
-This works for the corrective skills, which are a single file. **`vibe-dba` also ships a collector and a report generator**, so it needs the whole directory rather than one file — clone the repository and link it into place:
+This works for the corrective skills, which are a single file. **`vibe-dba` also ships a collector and a report generator, and `mariadb-taf` ships run templates**, so they need the whole directory rather than one file — clone the repository and link it into place:
 
 ```bash
 git clone https://github.com/mariadb/skills.git
 ln -s "$(pwd)/skills/vibe-dba" ~/.claude/skills/vibe-dba
+ln -s "$(pwd)/skills/mariadb-taf" ~/.claude/skills/mariadb-taf
 ```
 
 ### Updating installed skills
