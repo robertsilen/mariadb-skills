@@ -1,6 +1,6 @@
 # Vibe DBA
 
-*Last updated: 2026-10-06*
+*Last updated: 2026-10-19*
 
 **Audit a running MariaDB server.** Collect data from it, turn that into a report you
 can read, and have an AI agent add analysis on top.
@@ -12,7 +12,7 @@ server and reports on what it finds.
 
 ```
 1. COLLECT  ──►  2. REPORT  ──►  3. ANALYSE
-   Go binaries      Python           SKILL.md
+   shell plugin     Python           SKILL.md
    deterministic    deterministic    ~10% of the output
 ```
 
@@ -50,8 +50,8 @@ and charts are plotted against wall-clock time so a spike lines up with somethin
 remember happening. If the window was too short or too idle, the report says so rather
 than quietly implying health.
 
-**The collector runs where the AI is not.** It is a static binary with no
-dependencies, no network access and no AI involvement. It runs on the database server;
+**The collector runs where the AI is not.** It is a MariaDB Shell plugin, with no
+network access and no AI involvement. It runs on the database server;
 the collected files are then moved to wherever you want to analyse them. Production
 database servers have no outbound internet and no API keys, and nobody grants an agent
 a connection to one — so the agent never touches the server. It reads a file.
@@ -100,75 +100,71 @@ assessment without collected data. No collection, no audit.
 
 ## Running it yourself
 
-No agent required. Needs Go 1.24+ to build, Python 3.9+ to report (standard library
-only), and a MariaDB user with read access.
+No agent required. Needs a MariaDB user with read access,
+[MariaDB Shell](https://github.com/mariadb-corporation/mariadb-shell) where the
+collector runs, and Python 3.9+ to report (standard library only).
+
+Link the plugin into the shell once, then collect through the shell's connection:
 
 ```sh
-cd collector
-go build ./cmd/mariadb-envcollect ; go build ./cmd/mariadb-metrics
+mkdir -p ~/.mariadb-shell/plugins
+ln -s "$(pwd)/collector/shell-plugin/vibe_dba" ~/.mariadb-shell/plugins/vibe_dba
 
-./mariadb-envcollect -out /tmp/collect/env -package=false -cleanup=false
-./mariadb-metrics    -out /tmp/collect     -duration 10m -package=false -cleanup=false
+mariadb-shell collector@localhost -- vibeDba collect-environment --outputDir=/tmp/collect
+mariadb-shell collector@localhost -- vibeDba collect-metrics --outputDir=/tmp/collect --duration=10m
 
-python3 scripts/mariadb-report.py /tmp/collect -o report.html
+python3 collector/scripts/mariadb-report.py /tmp/collect -o report.html
 ```
 
 The metrics run blocks for its full duration. The report script takes the parent
 directory and finds both collections underneath it. Add `--text` for a plain-text
-version alongside the HTML.
+version alongside the HTML. [`collector/README.md`](collector/README.md) lists every
+option.
 
 ## Collecting from a remote server
 
 The realistic case: the database is on a Linux server, and you want the report on your
-own machine. Nothing is installed on the server and Python is not needed there — only
-the two binaries, which you delete afterwards.
+own machine. The server needs MariaDB Shell, which brings its own Python; nothing else
+is installed.
 
-**1. Build for the target.** Both binaries, cross-compiled from wherever you are:
-
-```sh
-cd collector
-GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-envcollect
-GOOS=linux GOARCH=amd64 go build ./cmd/mariadb-metrics
-```
-
-Use `GOARCH=arm64` for Graviton or other ARM servers. They are static, dependency-free
-binaries of about 3.5 MB each.
-
-**2. Copy them over.** Anywhere writable — no installation, no root needed to run them:
+**1. Install the shell and the plugin on the server.** The shell installs per user into
+`~/.local`, no root needed:
 
 ```sh
-scp mariadb-envcollect mariadb-metrics server:/tmp/
-```
-
-**3. Collect.** Environment first — it takes seconds — then metrics over your window:
-
-```sh
+scp -r collector/shell-plugin/vibe_dba server:
 ssh server
-cd /tmp
-./mariadb-envcollect -out /tmp/collect/env -package=false -cleanup=false
-./mariadb-metrics    -out /tmp/collect     -duration 10m -package=false -cleanup=false
-tar czf collect.tgz -C /tmp collect
+curl -fsSL https://github.com/mariadb-corporation/mariadb-shell/raw/main/install.sh | bash
+mkdir -p ~/.mariadb-shell/plugins && ln -s ~/vibe_dba ~/.mariadb-shell/plugins/vibe_dba
+```
+
+**2. Collect.** Environment first — it takes seconds — then metrics over your window:
+
+```sh
+mariadb-shell collector@localhost -- vibeDba collect-environment --outputDir=/tmp/collect
+mariadb-shell collector@localhost -- vibeDba collect-metrics --outputDir=/tmp/collect --duration=10m
 ```
 
 Run both. Metrics alone gives you charts with none of the schema, configuration,
-security or feature sections — which is where most findings come from.
+security or feature sections — which is where most findings come from. Each writes a
+`.tgz` beside its directory.
 
 Output is plain text files plus gzipped sample streams. Its size grows with the
-length of the window and with the size and activity of the server: a 3-minute run
-on a small, quiet test server packs to about 0.6 MB, but the per-second samples grow
-with every minute collected. The per-minute processlist and InnoDB status grow with
-the number of connections, and the schema dump grows with the number of tables. It
-has not yet been measured on a large, busy server.
+length of the window and with the size and activity of the server: on a small test
+server a 70-second metrics run packs to about 30 KB and the environment to about
+40 KB, but the per-second samples grow with every minute collected. The per-minute
+processlist and InnoDB status grow with the number of connections, and the schema
+definitions with the number of tables. It has not yet been measured on a large, busy
+server.
 
-**4. Bring it back and report:**
+**3. Bring it back and report:**
 
 ```sh
-scp server:/tmp/collect.tgz .
-python3 scripts/mariadb-report.py collect.tgz -o report.html
+scp 'server:/tmp/collect/*.tgz' collect/
+python3 collector/scripts/mariadb-report.py collect -o report.html
 ```
 
-**5. Clean up** — `rm /tmp/mariadb-envcollect /tmp/mariadb-metrics` and the collection
-directory. Nothing else was left behind.
+**4. Clean up** — remove `~/vibe_dba`, the plugin link and `/tmp/collect` on the server,
+and the shell too if it was installed only for this.
 
 ### The database user
 
@@ -183,27 +179,26 @@ GRANT SELECT, PROCESS, REPLICATION CLIENT, SLAVE MONITOR, SHOW VIEW, SHOW DATABA
 
 `PROCESS` is needed for `SHOW ENGINE INNODB STATUS` and the processlist,
 `REPLICATION CLIENT` for `SHOW MASTER STATUS`, `SLAVE MONITOR` (10.5+) for
-`SHOW SLAVE STATUS`, and `SHOW VIEW` for the schema dump. Missing privileges leave
+`SHOW SLAVE STATUS`, and `SHOW VIEW` for view definitions. Missing privileges leave
 those sections reported as unavailable rather than failing the run.
 
-Verified: with exactly these grants the collector produces a complete report — schema,
-security, features, InnoDB status and replication all present.
+Verified on 11.8: with exactly these grants the report is complete — schema, security,
+features, InnoDB status and replication all present — except that triggers and events
+are not visible to the account, so they are missing from the schema definitions.
 
-The collectors shell out to the `mariadb` client, so with no arguments they use your
-usual configuration. Point them elsewhere with `-mariadb-conn`,
-`-mariadb-defaults-file`, or `-mariadb-host` / `-mariadb-user` / `-mariadb-password`;
-the matching `MARIADB_*` environment variables work too, which keeps passwords out of
-your shell history. Run `-h` for the full list.
+The plugin uses the shell's connection, so anything `mariadb-shell` accepts works:
+URIs, sockets, TLS options, `-p` to prompt, and the shell's credential store, which
+keeps passwords out of your shell history.
 
 ### No shell access on the server
 
 A managed instance, for example. Run the collector from your own machine against the
-server over the network, with `-rds` to skip the operating-system data that only works
-locally:
+server over the network. The plugin notices the server is not local and skips the
+operating-system data, which it could only read from the machine it runs on:
 
 ```sh
-./mariadb-envcollect -rds -out /tmp/collect/env -mariadb-host db.example.com -mariadb-user collector
-./mariadb-metrics    -rds -out /tmp/collect -duration 10m -mariadb-host db.example.com -mariadb-user collector
+mariadb-shell collector@db.example.com -- vibeDba collect-environment --outputDir=/tmp/collect
+mariadb-shell collector@db.example.com -- vibeDba collect-metrics --outputDir=/tmp/collect --duration=10m
 ```
 
 Everything MariaDB-side is still collected; the report states which sections are
@@ -219,7 +214,7 @@ and system files. Nothing is written and no setting is changed. Appendix B of ev
 report states this, and the full query set is in the collector source.
 
 **Snapshot** — version and variables, global and InnoDB status, engines and plugins,
-replication status, schema structure (`mariadb-dump --no-data`), configuration files,
+replication status, schema structure (`SHOW CREATE` for every object), configuration files,
 sizes by database and table, tables missing primary or secondary indexes,
 auto-increment headroom, MariaDB feature usage including vector index definitions,
 accounts and grants, and hardware identity (CPU, cores, RAM, disk — Linux and macOS).
@@ -264,8 +259,9 @@ version and is where the remaining work is.
 - **macOS** — hardware identity is collected, but the sampled operating-system metrics
   (`vmstat`, `mpstat`, `iostat`, `/proc/diskstats`) are Linux-only. MariaDB collection
   is unaffected.
-- **Distribution** — the collector currently needs Go to build. Prebuilt binaries as
-  release assets would remove that.
+- **Distribution** — the plugin is linked into the shell by hand. Shipping it with
+  MariaDB Shell, or through the shell's `plugins` repository mechanism, would remove
+  that step.
 
 ## Credits
 
@@ -273,7 +269,8 @@ Developed by [@robertsilen](https://github.com/robertsilen) based on DBA skills 
 [@lefred](https://github.com/lefred) and an idea by
 [@kajarnocom](https://github.com/kajarnocom).
 
-The collector was written by Frédéric "lefred" Descamps, who also shaped the approach:
+The collector was originally written in Go by Frédéric "lefred" Descamps, and ported to
+a MariaDB Shell plugin. lefred also shaped the approach:
 in particular that a database audit must be built on measurement over time rather than
 on a single snapshot.
 

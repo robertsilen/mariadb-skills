@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate a dark, Grafana-like HTML report from mariadb-metrics output.
+Generate a dark, Grafana-like HTML report from Vibe DBA collector output.
 
 The input can be either a collected metrics directory or a .tar/.tgz package.
 No third-party Python packages are required.
@@ -108,7 +108,7 @@ class Window:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Create a dark HTML graph report from mariadb-metrics data."
+        description="Create a dark HTML graph report from Vibe DBA collector data."
     )
     parser.add_argument(
         "paths", nargs="*",
@@ -307,10 +307,6 @@ def build_charts(metrics_dir: Path, window: Window, max_points: int) -> list[Cha
             metrics_dir,
             "global_status.out.gz",
             "global_status.out",
-            "mariadb-admin.out.gz",
-            "mariadb-admin.out",
-            "mysqladmin.out.gz",
-            "mysqladmin.out",
         ),
         window,
     )
@@ -1364,7 +1360,7 @@ def render_summary(window: Window, charts: list[Chart], env: Env) -> str:
 
 @dataclass
 class Env:
-    """Parsed output of mariadb-envcollect."""
+    """Parsed output of vibeDba.collectEnvironment."""
 
     root: Path | None = None
     variables: dict[str, str] = field(default_factory=dict)
@@ -1926,7 +1922,7 @@ def window_quality_note(window: Window, env: Env) -> str:
     if not duration:
         return (
             '<p class="unavailable"><strong>No metrics were sampled.</strong> Run '
-            + code("mariadb-metrics -duration 10m")
+            + code("vibeDba collect-metrics --duration=10m")
             + " across a period you care about to get workload analysis.</p>"
         )
     if duration < 300:
@@ -2183,18 +2179,24 @@ def render_raw_config(env: Env) -> str:
 
 def render_methodology(env: Env, window: Window) -> str:
     started = env.text("collection_start")
+    no_host_note = ""
+    if "hostInfo=false" in env.text("collector"):
+        no_host_note = (
+            "\n<p><strong>No operating-system data.</strong> The collector did not run on the "
+            "database server's host, so hardware, configuration files, the error log and the "
+            "OS and disk charts are absent. Their absence says nothing about the server.</p>")
     return f"""
 <p>Every value in this report was gathered with read-only statements — {code('SELECT')} and
 {code('SHOW')} only — plus reads of configuration files and system files. Nothing was written to
 the server and no setting was changed.</p>
 <p>Environment data was collected once{' at ' + html.escape(started) if started else ''} by
-{code('mariadb-envcollect')}. Sampled metrics were collected by {code('mariadb-metrics')}
-over {html.escape(format_window(window))}.</p>
+{code('vibeDba.collectEnvironment')}. Sampled metrics were collected by {code('vibeDba.collectMetrics')}
+over {html.escape(format_window(window))}.</p>{no_host_note}
 <p>Counter rates are computed from the real elapsed time between samples rather than an assumed
 interval. Values labelled <em>lifetime</em> are cumulative since the server last restarted and
 describe the whole life of the server, not the collection window.</p>
-<p>The exact query set is in the collector source, in
-{code('internal/envcollect')} and {code('internal/metrics')}.</p>
+<p>The exact query set is in the MariaDB Shell plugin, in
+{code('shell-plugin/vibe_dba/environment.py')} and {code('shell-plugin/vibe_dba/metrics.py')}.</p>
 <p><strong>Provenance.</strong> Everything in this report is mechanically generated unless it
 carries an <span class="prov-chip prov-ai">AI ANALYSIS</span> or
 <span class="prov-chip prov-human">DBA NOTE</span> label. Marked blocks are additions on top of the

@@ -1,6 +1,6 @@
 # Analysis reference
 
-*Last updated: 2026-08-10*
+*Last updated: 2026-10-19*
 
 Read this when writing the analysis in step 6 of `SKILL.md`. It covers how to weigh
 a finding, what order to recommend fixes in, which correlations are worth attempting,
@@ -16,7 +16,8 @@ version — use it.
 - **Nothing from a window the report called too short.** Say what you would need.
 - **Nothing about query performance with Performance Schema off**, beyond what the
   aggregate counters support.
-- **No OS or disk conclusion when the collection ran with `-rds`** or on macOS.
+- **No OS or disk conclusion when the collector ran away from the server** (Appendix B
+  says so) or on macOS.
   Those collectors produce nothing, and their absence is not evidence of health.
 - **Never a clean bill of health from a quiet window.** "Nothing alarming appeared in
   this 10-minute window, which was idle" is honest; "your database is healthy" is not.

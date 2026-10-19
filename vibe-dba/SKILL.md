@@ -5,9 +5,9 @@ description: "Health check or audit a running MariaDB server. Use when the user 
 
 # Vibe DBA
 
-*Last updated: 2026-08-10*
+*Last updated: 2026-10-19*
 
-> **Requires:** a real MariaDB server the user can collect from, Go 1.24+ to build the collector (or a prebuilt binary), and Python 3.9+ to generate the report. Assume MariaDB **11.8 LTS** unless the server reports otherwise — the report states the actual version, so use that.
+> **Requires:** a real MariaDB server the user can collect from, [MariaDB Shell](https://github.com/mariadb-corporation/mariadb-shell) to run the collector plugin, and Python 3.9+ to generate the report. Assume MariaDB **11.8 LTS** unless the server reports otherwise — the report states the actual version, so use that.
 >
 > **Where the tools live:** the `collector/` directory **next to this file**, wherever this skill is installed. Work out that path before running anything — do not assume the current working directory. `README.md` beside this file documents every flag; read it rather than guessing.
 
@@ -15,7 +15,7 @@ This skill produces an **audit of a specific server**, not advice about MariaDB 
 general. It runs a three-layer pipeline:
 
 ```
-1. COLLECT (Go binaries) → 2. REPORT (Python) → 3. ANALYSE (you)
+1. COLLECT (shell plugin) → 2. REPORT (Python) → 3. ANALYSE (you)
    deterministic             deterministic         ~10% of the output
 ```
 
@@ -64,17 +64,17 @@ question usually surfaces it, and it converts a vague request into a targeted on
 ### 2. Check the collector can run
 
 Needed: shell access on the server **or** network access from elsewhere, a MariaDB
-user with read access, and Go 1.24+ or a prebuilt binary.
+user with read access, and MariaDB Shell (`mariadb-shell --version`) where the
+collector runs. Link the plugin into it once:
 
 ```sh
-cd <skill-dir>/collector       # every command below is relative to here
-go build ./cmd/mariadb-envcollect
-go build ./cmd/mariadb-metrics
+mkdir -p ~/.mariadb-shell/plugins
+ln -s <skill-dir>/collector/shell-plugin/vibe_dba ~/.mariadb-shell/plugins/vibe_dba
 ```
 
 `<skill-dir>` is the directory holding this `SKILL.md`. If the skill is installed as
-a symlink, resolve it first — the collector source has to be the real path, not the
-link, for `go build` to work.
+a symlink, resolve it first — the link has to point at the real path. On a server the
+skill is not installed on, copy `collector/shell-plugin/vibe_dba` there and link that.
 
 ### 3. Choose the collection window
 
@@ -99,20 +99,19 @@ quiet Tuesday instead."*
 
 Environment is a one-off snapshot; metrics sample over the window. Run both.
 
-```sh
-./mariadb-envcollect -out /tmp/collect/env -package=false -cleanup=false
-./mariadb-metrics    -out /tmp/collect     -duration 10m -package=false -cleanup=false
-```
-
-Collecting over the network instead of on the server — add `-rds`, which skips the
-operating-system data that only works locally:
+The connection is the shell's own, so use whatever `mariadb-shell` accepts:
 
 ```sh
-./mariadb-metrics -rds -duration 10m -mariadb-host db.example.com -mariadb-user collector
+mariadb-shell collector@localhost -- vibeDba collect-environment --outputDir=/tmp/collect --package=false
+mariadb-shell collector@localhost -- vibeDba collect-metrics --outputDir=/tmp/collect --duration=10m --package=false
 ```
+
+Collecting over the network instead of on the server works the same way —
+`collector@db.example.com` — and the plugin skips the operating-system data by itself,
+since it can only read the host it runs on.
 
 If you cannot reach the server, **hand the commands over and wait.** Ask the user to
-add `-package` and return the `.tgz`. Picking the run back up from a package they
+return the two `.tgz` files the plugin writes by default (drop `--package=false`). Picking the run back up from a package they
 provide is normal, not a fallback.
 
 ### 5. Generate the report
@@ -231,9 +230,9 @@ divided by an unknown uptime.
 
 | Obstacle | Answer |
 |---|---|
-| No Go toolchain | Build elsewhere and copy one static binary across; it has no dependencies |
-| No shell access on the server | `-rds` collects over the network. Says goodbye to OS data, keeps everything MariaDB |
-| Cannot install anything | Nothing is installed. One binary, writing to a directory they choose |
+| No MariaDB Shell on the server | It installs per user into `~/.local`, no root needed: `curl -fsSL https://github.com/mariadb-corporation/mariadb-shell/raw/main/install.sh \| bash` |
+| No shell access on the server | Collect over the network from a `mariadb-shell` elsewhere. Loses OS data, keeps everything MariaDB |
+| Cannot install anything | Collect over the network from a machine where they can, as above |
 | Worried about impact | Read-only — `SELECT` and `SHOW` only. Appendix B of the report lists exactly what ran |
 | Unsure when to run it | That is the interview, and the most valuable help available |
 
